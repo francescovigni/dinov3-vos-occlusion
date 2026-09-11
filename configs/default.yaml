@@ -36,8 +36,10 @@ model:
 train:
   epochs: 15
   lr: 2.0e-4
-  clip_len: 8
-  clips_per_epoch: 400
+  clip_len: 12
+  gap_max: 2                 # random frame gap in cached frames (cache is stride 2 -> 2-4 original frames)
+  clips_per_epoch: 300
+  holdout: 8                 # train sequences held out; validation = their clean variant, full length
   teacher_forcing_start: 1.0
   teacher_forcing_end: 0.2
   w_mask: 1.0

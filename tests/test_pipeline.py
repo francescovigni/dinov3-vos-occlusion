@@ -98,9 +98,10 @@ def test_04_train_and_eval_model(pipeline, monkeypatch):
         ["--config", str(pipeline["cfg"]), "--out", str(out), "--variants", "clean", "occ0"],
     )
     ck = torch.load(out / "model.pt", map_location="cpu")
-    assert ck["c_in"] == 16 and "kv.key.weight" in ck["model"]
+    assert ck["c_in"] == 16 and "kv.key.weight" in ck["model"] and 0.0 <= ck["val_J"] <= 1.0
+    assert (out / "last.pt").exists()
     log = (out / "log.csv").read_text().splitlines()
-    assert log[0].startswith("epoch,loss") and len(log) == 2
+    assert log[0] == "epoch,loss,loss_mask,loss_vis,teacher_forcing,val_J" and len(log) == 2
     ev = pipeline["root"] / "runs" / "head_occ0"
     run(
         monkeypatch,

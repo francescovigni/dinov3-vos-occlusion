@@ -164,5 +164,7 @@ def track(
         probs.append(p)
         vis.append(v)
         if v > vis_gate:
-            mem.add(*model.encode(feats[t : t + 1], to_feature_res(p, (h, w))))
+            # write a hard mask: the value encoder was trained on binary ground truth, and
+            # soft, blurry masks fed back frame after frame erode the object (v1 failure)
+            mem.add(*model.encode(feats[t : t + 1], to_feature_res((p > 0.5).float(), (h, w))))
     return probs, vis

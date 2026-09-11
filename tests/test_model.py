@@ -44,3 +44,17 @@ def test_bce_dice_finite_and_zero_at_perfect():
     target[..., :4, :] = 1.0
     loss = bce_dice(torch.where(target > 0, 20.0, -20.0), target)
     assert torch.isfinite(loss) and loss.item() < 0.15
+
+
+def test_sample_indices_respects_gaps_and_bounds():
+    import random
+
+    from dvos.train import sample_indices
+
+    rng = random.Random(0)
+    for _ in range(200):
+        idx = sample_indices(n=40, length=12, gap_max=3, rng=rng)
+        assert len(idx) == 12 and idx[0] >= 0 and idx[-1] <= 39
+        assert all(1 <= b - a <= 3 for a, b in zip(idx[:-1], idx[1:], strict=True))
+    short = sample_indices(n=5, length=12, gap_max=3, rng=rng)
+    assert short == [0, 1, 2, 3, 4]
