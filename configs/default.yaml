@@ -34,6 +34,9 @@ model:
   readout_topk: 32
   pos_dim: 32                # 2-D sinusoidal position channels in the keys (0 = off)
   locality_radius: 12        # recent-memory reads limited to this patch radius; frame 0 global (0 = off)
+  use_prior: true            # zero-shot k-NN label propagation from memory fed to decoder + visibility head
+  prior_topk: 5
+  prior_temperature: 0.07
 
 train:
   epochs: 15

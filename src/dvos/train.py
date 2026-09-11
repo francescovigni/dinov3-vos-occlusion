@@ -80,14 +80,11 @@ def train_clip(model: MemoryVOS, feats, masks, mc, tf: float, rng: random.Random
     length = feats.shape[0]
     h, w = feats.shape[2:]
     mem = MemoryBank(mc.memory_max)
-    mem.add(*model.encode(feats[0:1], to_feature_res(masks[0:1], (h, w))))
+    model.write(mem, feats[0:1], (to_feature_res(masks[0:1], (h, w)) > 0.5).float())
     lm = torch.zeros((), device=feats.device)
     lv = torch.zeros((), device=feats.device)
     for t in range(1, length):
-        mk, mv = mem.read()
-        o = model(
-            feats[t : t + 1], mk, mv, mem.locality_mask(h, w, model.locality_radius, feats.device)
-        )
+        o = model.step(feats[t : t + 1], mem)
         target = masks[t : t + 1]
         vis_label = (target.sum() > 0).float().view(1, 1)
         lm = lm + bce_dice(o["mask_logits"], target)
@@ -98,7 +95,7 @@ def train_clip(model: MemoryVOS, feats, masks, mc, tf: float, rng: random.Random
             visible_now = torch.sigmoid(o["vis_logit"]).item() > mc.vis_gate
             mask_mem = (torch.sigmoid(o["mask_logits"]) > 0.5).float().detach()
         if visible_now:
-            mem.add(*model.encode(feats[t : t + 1], to_feature_res(mask_mem, (h, w))))
+            model.write(mem, feats[t : t + 1], (to_feature_res(mask_mem, (h, w)) > 0.5).float())
     n = max(1, length - 1)
     return lm / n, lv / n
 

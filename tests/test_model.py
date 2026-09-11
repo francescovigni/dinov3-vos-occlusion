@@ -5,6 +5,7 @@ from dvos.model import (
     MemoryVOS,
     bce_dice,
     build_model,
+    label_prior,
     readout,
     sincos_2d,
     to_feature_res,
@@ -102,3 +103,31 @@ def test_build_model_with_locality_forward():
     first[..., 4:12, 8:20] = 1.0
     probs, vis = track(m.eval(), feats, first, memory_max=3)
     assert len(probs) == 4 and probs[-1].shape == (1, 1, 24, 32)
+
+
+def test_label_prior_copies_labels_of_nearest_features():
+    torch.manual_seed(0)
+    mfeat = torch.nn.functional.normalize(torch.randn(1, 8, 6), dim=1)
+    mlabel = torch.tensor([[[1.0, 0.0, 1.0, 0.0, 0.0, 1.0]]])
+    prior = label_prior(mfeat.clone(), mfeat, mlabel, topk=1, temperature=0.07)
+    assert prior.shape == (1, 1, 6) and torch.allclose(prior, mlabel)
+    mask = torch.zeros(6, 6, dtype=torch.bool)
+    mask[:, 1] = True  # every query may only read entry 1, whose label is 0
+    assert torch.allclose(label_prior(mfeat, mfeat, mlabel, mask, topk=3), torch.zeros(1, 1, 6))
+
+
+def test_prior_model_tracks_and_bank_keeps_prior_entries():
+    m = build_model(
+        16, dict(c_key=8, c_value=16, hidden=16, readout_topk=4, use_prior=True, locality_radius=1)
+    )
+    feats = torch.randn(5, 16, 6, 8)
+    first = torch.zeros(1, 1, 24, 32)
+    first[..., 4:12, 8:20] = 1.0
+    probs, vis = track(m.eval(), feats, first, memory_max=3, vis_gate=0.0)
+    assert len(probs) == 5
+    mem = MemoryBank(3)
+    m.write(mem, feats[0:1], to_feature_res(first, (6, 8)))
+    mf, ml = mem.read_prior()
+    assert mf.shape == (1, 16, 48) and ml.shape == (1, 1, 48)
+    out = m.step(feats[1:2], mem)
+    assert out["prior"].shape == (1, 1, 48) and out["mask_logits"].shape == (1, 1, 24, 32)
