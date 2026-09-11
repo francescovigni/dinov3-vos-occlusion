@@ -31,3 +31,13 @@ def test_propagation_follows_a_moving_square():
     assert len(out) == len(feats) and out[-1].shape == (2, 16, 16)
     pred = out[-1].argmax(0).bool().numpy()
     assert jaccard(pred, masks[-1].numpy()) > 0.8
+
+
+def test_hidden_frames_get_empty_labels_and_are_skipped_as_context():
+    feats, masks = moving_square()
+    labels0 = torch.stack([(~masks[0]).float(), masks[0].float()])
+    hidden = [False, False, True, True, False, False]
+    out = propagate(feats, labels0, n_last=3, topk=5, radius=2, temperature=0.07, hidden=hidden)
+    assert out[2][1].sum() == 0 and out[3][1].sum() == 0  # declared hidden -> no foreground
+    pred = out[-1].argmax(0).bool().numpy()
+    assert jaccard(pred, masks[-1].numpy()) > 0.8  # recovers from frame 0 + frame 4

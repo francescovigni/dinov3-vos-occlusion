@@ -25,7 +25,7 @@ def upsample(prob: torch.Tensor, size: tuple[int, int]) -> np.ndarray:
 
 
 def run_baseline(
-    feats: torch.Tensor, first: np.ndarray, size, bcfg
+    feats: torch.Tensor, first: np.ndarray, size, bcfg, hidden: list[bool] | None = None
 ) -> tuple[list[np.ndarray], list[float]]:
     T, _, h, w = feats.shape
     fg = F.interpolate(torch.from_numpy(first).float()[None, None], size=(h, w), mode="area")[0, 0]
@@ -37,6 +37,7 @@ def run_baseline(
         topk=bcfg.topk,
         radius=bcfg.radius,
         temperature=bcfg.temperature,
+        hidden=hidden,
     )
     preds, vis = [], []
     for lab in soft:
@@ -75,7 +76,7 @@ def run_model(
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default="configs/default.yaml")
-    ap.add_argument("--method", choices=["baseline", "model"], default="baseline")
+    ap.add_argument("--method", choices=["baseline", "model", "gated_baseline"], default="baseline")
     ap.add_argument("--checkpoint", default=None)
     ap.add_argument("--split", default="val")
     ap.add_argument("--variant", default="clean")
@@ -98,7 +99,7 @@ def main() -> None:
     if not dirs:
         raise SystemExit(f"no cached features under {root} for variant {args.variant}")
     model = None
-    if args.method == "model":
+    if args.method in ("model", "gated_baseline"):
         ck = torch.load(args.checkpoint, map_location="cpu")
         c_in = int(ck.get("c_in") or ck["model"]["kv.key.weight"].shape[1])
         model_cfg = ck.get("config", {}).get("model", None) or cfg.model
@@ -116,6 +117,14 @@ def main() -> None:
         size = tuple(meta["image_size"])
         if args.method == "baseline":
             preds, vis = run_baseline(feats, visible[0], size, cfg.baseline)
+        elif args.method == "gated_baseline":
+            # the head decides when the object is hidden; zero-shot propagation does the masks
+            _, vis = run_model(
+                model, feats, visible[0], size, cfg.model, vis_gate=gate, keep_first=keep_first
+            )
+            preds, _ = run_baseline(
+                feats, visible[0], size, cfg.baseline, hidden=[v < gate for v in vis]
+            )
         else:
             preds, vis = run_model(
                 model, feats, visible[0], size, cfg.model, vis_gate=gate, keep_first=keep_first
@@ -164,7 +173,7 @@ def main() -> None:
         split=args.split,
         checkpoint=args.checkpoint,
         vis_gate=None if args.method == "baseline" else gate,
-        keep_first=None if args.method == "baseline" else keep_first,
+        keep_first=None if args.method in ("baseline", "gated_baseline") else keep_first,
         n_seq=len(rows),
         J=nanmean("J"),
         F=nanmean("F"),

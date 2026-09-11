@@ -146,6 +146,40 @@ def test_04_train_and_eval_model(pipeline, monkeypatch):
     assert s2["vis_gate"] == 0.0 and s2["keep_first"] is False
 
 
+def test_04b_gated_baseline_and_gate_by_j(pipeline, monkeypatch):
+    from dvos import calibrate
+
+    out = pipeline["root"] / "runs" / "head"
+    run(
+        monkeypatch,
+        calibrate,
+        ["--config", str(pipeline["cfg"]), "--run", str(out), "--objective", "j"],
+    )
+    g = json.loads((out / "gate_j.json").read_text())
+    assert 0.0 <= g["vis_gate"] <= 1.0 and len(g["curve"]) == 10
+    ev = pipeline["root"] / "runs" / "gated_occ0"
+    run(
+        monkeypatch,
+        evaluate,
+        [
+            "--config",
+            str(pipeline["cfg"]),
+            "--method",
+            "gated_baseline",
+            "--checkpoint",
+            str(out / "model.pt"),
+            "--variant",
+            "occ0",
+            "--out",
+            str(ev),
+            "--vis-gate",
+            str(g["vis_gate"]),
+        ],
+    )
+    s = json.loads((ev / "metrics.json").read_text())["summary"]
+    assert s["method"] == "gated_baseline" and 0.0 <= s["JF"] <= 1.0
+
+
 def test_05_figure(pipeline, monkeypatch):
     png = pipeline["root"] / "runs" / "qual.png"
     run(

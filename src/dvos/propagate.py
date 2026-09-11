@@ -31,8 +31,13 @@ def propagate(
     topk: int = 5,
     radius: int = 12,
     temperature: float = 0.07,
+    hidden: list[bool] | None = None,
 ) -> list[torch.Tensor]:
-    """``feats``: T tensors (C,h,w). ``first_labels``: (K,h,w) soft/one-hot. Returns T tensors (K,h,w)."""
+    """``feats``: T tensors (C,h,w). ``first_labels``: (K,h,w) soft/one-hot. Returns T tensors (K,h,w).
+
+    ``hidden[t]`` marks frames where the object is declared hidden: their label is all
+    background (channel 0) and they are never used as context. Frame 0 is never hidden.
+    """
     if not feats:
         return []
     device = feats[0].device
@@ -41,8 +46,16 @@ def propagate(
     fn = [F.normalize(f.reshape(C, -1), dim=0) for f in feats]  # (C, hw)
     labels = [first_labels.reshape(K, -1).float().to(device)]
     nb = neighborhood_mask(h, w, radius, device)
+    hidden = [False] * len(feats) if hidden is None else list(hidden)
+    hidden[0] = False
+    empty = torch.zeros(K, h * w, device=device)
+    empty[0] = 1.0
     for t in range(1, len(feats)):
-        ctx = [0] + list(range(max(1, t - n_last), t))
+        if hidden[t]:
+            labels.append(empty.clone())
+            continue
+        recent = [i for i in range(max(1, t - n_last), t) if not hidden[i]]
+        ctx = [0] + recent
         keys = torch.cat([fn[i] for i in ctx], dim=1)  # (C, N*hw)
         labs = torch.cat([labels[i] for i in ctx], dim=1)  # (K, N*hw)
         aff = (fn[t].t() @ keys) / temperature  # (hw, N*hw)
