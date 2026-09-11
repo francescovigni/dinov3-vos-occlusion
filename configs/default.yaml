@@ -19,6 +19,7 @@ occlusion:
   scale: [1.2, 1.8]          # occluder size relative to target bbox: most episode frames fully hide it
   jitter: 0.05               # centre jitter as fraction of target bbox
   hidden_fraction: 0.9       # a frame counts as hidden when occluded fraction >= this or the mask is empty
+  fill_hull: true            # occluder alpha = convex hull of the cut object, so it covers what it is placed on
 
 baseline:
   n_last: 7

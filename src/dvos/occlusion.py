@@ -14,6 +14,17 @@ import cv2
 import numpy as np
 
 
+def convex_fill(alpha: np.ndarray) -> np.ndarray:
+    """Fill a silhouette with its convex hull, so a thin occluder still covers what it is placed on."""
+    ys, xs = np.where(alpha)
+    if len(ys) < 3:
+        return alpha.astype(bool)
+    hull = cv2.convexHull(np.column_stack([xs, ys]).astype(np.int32))
+    out = np.zeros(alpha.shape, np.uint8)
+    cv2.fillConvexPoly(out, hull, 1)
+    return out.astype(bool)
+
+
 @dataclass
 class OccluderBank:
     items: list[tuple[np.ndarray, np.ndarray]] = field(
@@ -22,9 +33,17 @@ class OccluderBank:
 
     @classmethod
     def from_masks(
-        cls, images: list[np.ndarray], masks: list[np.ndarray], min_side: int = 24
+        cls,
+        images: list[np.ndarray],
+        masks: list[np.ndarray],
+        min_side: int = 24,
+        fill_hull: bool = True,
     ) -> OccluderBank:
-        """Cut every object out of every (image, id-mask) pair given."""
+        """Cut every object out of every (image, id-mask) pair given.
+
+        With ``fill_hull`` the alpha is the object's convex hull: the pasted patch then shows the
+        object plus a little of its original surroundings, and reliably hides whatever it covers.
+        """
         bank = cls()
         for img, msk in zip(images, masks, strict=True):
             for oid in np.unique(msk):
@@ -37,7 +56,8 @@ class OccluderBank:
                 y0, y1, x0, x1 = ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
                 if (y1 - y0) < min_side or (x1 - x0) < min_side:
                     continue
-                bank.items.append((img[y0:y1, x0:x1].copy(), alpha[y0:y1, x0:x1].copy()))
+                a = alpha[y0:y1, x0:x1].copy()
+                bank.items.append((img[y0:y1, x0:x1].copy(), convex_fill(a) if fill_hull else a))
         return bank
 
     def sample(self, rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]:

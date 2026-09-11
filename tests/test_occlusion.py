@@ -1,6 +1,6 @@
 import numpy as np
 
-from dvos.occlusion import OccluderBank, occlude_sequence, occlusion_schedule, paste
+from dvos.occlusion import OccluderBank, convex_fill, occlude_sequence, occlusion_schedule, paste
 
 
 def scene(n=10, h=96, w=128):
@@ -49,3 +49,34 @@ def test_occlude_sequence_ground_truth(rng):
     assert any(d["fraction"][s:e] > 0.5), (
         "an occluder the size of the target should hide most of it"
     )
+
+
+def test_convex_fill_covers_silhouette():
+    alpha = np.zeros((20, 20), bool)
+    alpha[2:18, 9:11] = True  # thin vertical bar
+    alpha[9:11, 2:18] = True  # thin horizontal bar -> a cross
+    hull = convex_fill(alpha)
+    assert hull[alpha].all() and hull.sum() > 3 * alpha.sum()
+    assert convex_fill(np.zeros((5, 5), bool)).sum() == 0
+
+
+def test_hull_bank_hides_target():
+    images, masks = scene()
+    thin = np.zeros_like(masks[0])
+    thin[20:80, 60:64] = 1  # a thin stick as the only occluder
+    img = images[0].copy()
+    img[20:80, 60:64] = 255
+    for fill, expect_hidden in ((False, False), (True, True)):
+        bank = OccluderBank.from_masks([img], [thin], min_side=4, fill_hull=fill)
+        d = occlude_sequence(
+            images,
+            [m == 1 for m in masks],
+            bank,
+            np.random.default_rng(1),
+            min_len=3,
+            max_len=3,
+            scale=(1.5, 1.5),
+            jitter=0.0,
+        )
+        s, e = d["episode"]
+        assert (max(d["fraction"][s:e]) >= 0.9) == expect_hidden

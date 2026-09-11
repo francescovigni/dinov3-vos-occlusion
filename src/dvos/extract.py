@@ -28,7 +28,9 @@ def build_bank(cfg) -> OccluderBank:
     for seq in train.sequences:
         images.append(Davis.read_image(train.frames(seq)[0]))
         masks.append(Davis.read_mask(train.masks(seq)[0]))
-    return OccluderBank.from_masks(images, masks)
+    return OccluderBank.from_masks(
+        images, masks, fill_hull=getattr(cfg.occlusion, "fill_hull", True)
+    )
 
 
 def seq_seed(seq: str, variant_seed: int) -> int:
