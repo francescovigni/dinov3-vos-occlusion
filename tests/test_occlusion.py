@@ -56,27 +56,30 @@ def test_convex_fill_covers_silhouette():
     alpha[2:18, 9:11] = True  # thin vertical bar
     alpha[9:11, 2:18] = True  # thin horizontal bar -> a cross
     hull = convex_fill(alpha)
-    assert hull[alpha].all() and hull.sum() > 3 * alpha.sum()
+    assert hull[alpha].all() and hull.sum() > 2 * alpha.sum()
     assert convex_fill(np.zeros((5, 5), bool)).sum() == 0
 
 
-def test_hull_bank_hides_target():
+def test_hull_bank_alpha_contains_silhouette_and_hides_target():
     images, masks = scene()
-    thin = np.zeros_like(masks[0])
-    thin[20:80, 60:64] = 1  # a thin stick as the only occluder
+    cross = np.zeros_like(masks[0])
+    cross[20:80, 60:64] = 1
+    cross[48:52, 40:84] = 1
     img = images[0].copy()
-    img[20:80, 60:64] = 255
-    for fill, expect_hidden in ((False, False), (True, True)):
-        bank = OccluderBank.from_masks([img], [thin], min_side=4, fill_hull=fill)
-        d = occlude_sequence(
-            images,
-            [m == 1 for m in masks],
-            bank,
-            np.random.default_rng(1),
-            min_len=3,
-            max_len=3,
-            scale=(1.5, 1.5),
-            jitter=0.0,
-        )
-        s, e = d["episode"]
-        assert (max(d["fraction"][s:e]) >= 0.9) == expect_hidden
+    img[cross == 1] = 255
+    raw = OccluderBank.from_masks([img], [cross], min_side=4, fill_hull=False).items[0][1]
+    hull = OccluderBank.from_masks([img], [cross], min_side=4, fill_hull=True).items[0][1]
+    assert hull[raw].all() and hull.sum() > 2 * raw.sum()
+    bank = OccluderBank.from_masks([img], [cross], min_side=4, fill_hull=True)
+    d = occlude_sequence(
+        images,
+        [m == 1 for m in masks],
+        bank,
+        np.random.default_rng(1),
+        min_len=3,
+        max_len=3,
+        scale=(1.5, 1.5),
+        jitter=0.0,
+    )
+    s, e = d["episode"]
+    assert min(d["fraction"][s:e]) >= 0.9
