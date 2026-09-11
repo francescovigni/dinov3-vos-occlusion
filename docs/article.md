@@ -51,7 +51,7 @@ The tables are generated from `runs/` by `scripts/render_results.py`; the README
 | method | clean J&F | occ0 J&F | occ1 J&F | occ0 leak | occ0 vis AUC | occ0 never recovered |
 |---|---|---|---|---|---|---|
 | zero-shot k-NN propagation | 0.771 | 0.678 | 0.686 | 0.927 | 0.797 | 3 / 30 |
-| zero-shot propagation + learned visibility gate | 0.771 | 0.678 | – | 0.927 | 0.848 | 3 / 30 |
+| zero-shot propagation + learned visibility gate | 0.771 | 0.678 | 0.686 | 0.927 | 0.848 | 3 / 30 |
 | head v1 (soft memory masks) | 0.672 | 0.592 | 0.600 | 0.466 | 0.753 | 6 / 30 |
 | head v2 (+ hard masks, gapped clips, held-out selection) | 0.691 | 0.634 | 0.620 | 0.544 | 0.733 | 4 / 30 |
 | head v3 (+ position channels, locality window) | 0.718 | 0.637 | 0.634 | 0.674 | 0.643 | 5 / 30 |
@@ -73,6 +73,7 @@ The tables are generated from `runs/` by `scripts/render_results.py`; the README
 | ablation (occ0) | J&F | leak | vis AUC | never recovered |
 |---|---|---|---|---|
 | v4, calibrated gate, frame 0 permanent | 0.630 | 0.596 | 0.908 | 3 / 30 |
+| v4, gate chosen by J | 0.616 | 0.566 | 0.848 | 4 / 30 |
 | v4, ungated writes | 0.616 | 0.566 | 0.848 | 4 / 30 |
 | v4, FIFO memory (frame 0 evictable) | 0.627 | 0.594 | 0.907 | 3 / 30 |
 | v4 trained on clean features only | 0.646 | 0.878 | 0.632 | 2 / 30 |
