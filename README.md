@@ -80,7 +80,7 @@ Weights: `backbone.py` looks for DINOv3 checkpoints in `~/.cache/torch/hub/check
 
 - It does not fine-tune DINOv3. Every number is "frozen features + small head". A LoRA ablation is planned, not done.
 - It does not handle out-of-view the same as occlusion. Both look like "mask area zero" in DAVIS; the synthetic protocol only produces occlusions.
-- Single-target evaluation everywhere: the first object id of each sequence. Multi-object DAVIS scoring is not implemented.
+- Single-target evaluation everywhere: the largest object on frame 0 of each sequence (the first id is degenerate in two val sequences). Multi-object DAVIS scoring is not implemented.
 - Laptop compute: ViT-S/16 at 480×864, features cached once. No claim about ViT-L or 7B behaviour.
 - Results, until `runs/` has them.
 

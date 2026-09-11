@@ -65,9 +65,9 @@ def main() -> None:
         if args.max_frames:
             imgs, msks = imgs[: args.max_frames], msks[: args.max_frames]
         ids = Davis.object_ids(msks[0])
-        if not ids:
+        target = Davis.primary_object(msks[0])
+        if target is None:
             continue
-        target = ids[0]
         full = [(m == target) for m in msks]
         real = real_occlusion_episodes(msks, target)
         for variant in variants:

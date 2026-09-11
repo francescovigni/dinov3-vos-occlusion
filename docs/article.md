@@ -16,7 +16,7 @@ The encoder stays frozen throughout. Every number below is "DINOv3 ViT-S/16 feat
 
 ## Setup
 
-**Data.** DAVIS 2017, 480p. 60 training sequences, 30 validation sequences, first object of each sequence as the target. Nothing else.
+**Data.** DAVIS 2017, 480p. 60 training sequences, 30 validation sequences, the largest object on frame 0 of each sequence as the target (the first object id is a 0.0 % speck in `lab-coat` and a 0.3 % one in `scooter-black`). Nothing else.
 
 **Synthetic occlusions with ground truth.** For each sequence, an object cut from a *training* sequence is pasted over the target for a contiguous episode of 4–12 frames, centred on the target's centroid with jitter, scaled 0.8–1.4× the target's box. The visible mask, full mask, occluder mask and occluded fraction are stored per frame, so recovery can be measured exactly. Two seeds per validation sequence (`occ0`, `occ1`); `clean` is the untouched sequence.
 
@@ -37,7 +37,7 @@ The encoder stays frozen throughout. Every number below is "DINOv3 ViT-S/16 feat
 ## What this does not show
 
 - No fine-tuning of DINOv3. A LoRA ablation with a Gram-matrix anchor is the obvious next step and was not run.
-- Single target per sequence. Multi-object DAVIS scoring is not implemented.
+- Single target per sequence, the largest on frame 0. Multi-object DAVIS scoring is not implemented.
 - Pasted occluders have no shadows or motion blur. The real-episode numbers are the guard against learning the paste artefact.
 - ViT-S only. ViT-B and ViT-L weights are cached and one config line away; they were not run.
 - One seed per training run.

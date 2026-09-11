@@ -47,6 +47,18 @@ class Davis:
     def object_ids(mask0: np.ndarray) -> list[int]:
         return [int(i) for i in np.unique(mask0) if i != 0]
 
+    @staticmethod
+    def primary_object(mask0: np.ndarray) -> int | None:
+        """The object with the largest area on frame 0.
+
+        "First object id" is not a usable protocol: in DAVIS val ``lab-coat`` object 1 covers
+        0.0 % of frame 0 and ``scooter-black`` object 1 covers 0.3 %.
+        """
+        ids = Davis.object_ids(mask0)
+        if not ids:
+            return None
+        return max(ids, key=lambda i: int((mask0 == i).sum()))
+
 
 def real_occlusion_episodes(masks: list[np.ndarray], obj_id: int) -> list[tuple[int, int]]:
     """Frames where ``obj_id`` has zero area between two non-empty frames.

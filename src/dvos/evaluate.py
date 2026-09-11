@@ -1,6 +1,6 @@
 """Evaluate the zero-shot baseline or a trained head on cached features.
 
-Single target per sequence (the first object id). Writes ``metrics.json`` and ``summary.md``.
+Single target per sequence (the largest object on frame 0). Writes ``metrics.json`` and ``summary.md``.
 """
 
 from __future__ import annotations

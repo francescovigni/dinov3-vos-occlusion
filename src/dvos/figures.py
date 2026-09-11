@@ -41,12 +41,12 @@ def pick_frames(n: int, episode: list[int] | None) -> list[int]:
     return [max(1, n // 4), n // 2, max(1, 3 * n // 4)]
 
 
-def sequence_images(cfg, split: str, seq: str, variant: str, bank) -> list[np.ndarray]:
+def sequence_images(cfg, split: str, seq: str, variant: str, bank, target: int) -> list[np.ndarray]:
+    """Re-create the exact frames the features were extracted from (same seed, same bank)."""
     davis = Davis(cfg.data.davis_root, split, cfg.data.year, cfg.data.resolution)
     imgs, msks = davis.load(seq)
     if variant == "clean":
         return imgs
-    target = Davis.object_ids(msks[0])[0]
     rng = np.random.default_rng(seq_seed(seq, int(variant[3:])))
     o = cfg.occlusion
     d = occlude_sequence(
@@ -92,7 +92,7 @@ def main() -> None:
         meta = json.loads((fdir / "meta.json").read_text())
         masks = np.load(fdir / "masks.npz")
         preds = np.load(run / "masks" / f"{seq}.npz")["pred"]
-        imgs = sequence_images(cfg, args.split, seq, variant, bank)
+        imgs = sequence_images(cfg, args.split, seq, variant, bank, meta["target_id"])
         frames = pick_frames(len(imgs), meta["episode"])
         strip = []
         for t in frames:
