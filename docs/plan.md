@@ -48,3 +48,4 @@ DINOv3 (Siméoni et al. 2025, arXiv 2508.10104), DINO video-segmentation protoco
 - **Train cache at stride 2, clean + occ0 only** (11 Sep). Disk.
 - **Occluders 1.2–1.8×, jitter 0.05, hidden = fraction ≥ 0.9 or empty** (11 Sep). The 0.8–1.4× protocol produced 39 hidden frames in 1,969; nothing to learn or gate on.
 - **Gate calibrated on held-out training sequences** (11 Sep). A fixed 0.5 threshold never fired: the visibility head ranks correctly (AUC 0.97) but is biased by the class imbalance.
+- **Metrics verified against the reference implementation** (11 Sep, late). J was identical; the first boundary-F implementation ran ~0.01 high (morphological gradient + ellipse kernel instead of the half-pixel boundary map + Euclidean disk). Re-implemented from the algorithm (the reference is GPL), verified to machine precision, last frame excluded as in the official protocol, all evaluations re-run.

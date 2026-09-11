@@ -37,7 +37,7 @@ Everything is public. No client data, no client names.
 
 ## Metrics
 
-Standard **J** (region IoU), **F** (boundary), **J&F**. Plus three occlusion-specific numbers, all computed from the stored episodes:
+Standard **J** (region IoU), **F** (boundary), **J&F**, scored on frames 1..T−2 as in the official DAVIS protocol (first frame given, last frame excluded). Both are re-implemented here under MIT and checked against the reference `davis2017-evaluation` package (GPL, therefore not a dependency): J identical, F identical to machine precision on DAVIS val frames (`tests/test_metrics.py`, runs when the reference package is installed). Plus three occlusion-specific numbers, all computed from the stored episodes:
 
 | Metric | Question it answers |
 |---|---|
