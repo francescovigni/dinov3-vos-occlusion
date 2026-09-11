@@ -6,12 +6,12 @@ Goal: show, with numbers on public data, that occlusion robustness in VOS comes 
 
 | # | What | Done when |
 |---|---|---|
-| M0 | Scaffold, unit tests, config | `make test` green on a clean clone |
-| M1 | Feature cache at 480×864, ViT-S/16 fp16 (1.24 MB/frame): val every frame × 3 variants (~7.4 GB), train stride 2 × `clean`,`occ0` (~5.2 GB) | `data/features/{val,train}` populated, ~13 GB |
-| M2 | Zero-shot baseline on val, clean and occluded | `runs/baseline_*/summary.md` |
-| M3 | Trained memory head, laptop budget (≤ 1 h on M3 Pro per run) | `runs/head_*/summary.md`, held-out curve in `log.csv`, gate in `gate.json` |
-| M4 | Ablations (below) | one table in README |
-| M5 | Write-up: article in `docs/`, qualitative figure best/median/worst, "what this does NOT show" | README results section |
+| M0 ✅ | Scaffold, unit tests, config | `make test` green on a clean clone |
+| M1 ✅ | Feature cache at 480×864, ViT-S/16 fp16 (1.24 MB/frame): val every frame × 3 variants (~7.4 GB), train stride 2 × `clean`,`occ0` (~5.2 GB) | `data/features/{val,train}` populated, ~13 GB |
+| M2 ✅ | Zero-shot baseline on val, clean and occluded | `runs/baseline_*/summary.md` — J&F 0.771 / 0.678 |
+| M3 ✅ | Trained memory head, laptop budget (≤ 1 h on M3 Pro per run) | `runs/head_*/summary.md`, held-out curve in `log.csv`, gate in `gate.json` |
+| M4 ✅ | Ablations (below) | README `v4 ablations` table; gate ablation +1.4 J&F, FIFO ±0 |
+| M5 ✅ | Write-up: article in `docs/`, qualitative figure best/median/worst, "what this does NOT show" | README results section, `docs/article.md` |
 
 ## Ablations, in order of expected signal
 
@@ -19,7 +19,9 @@ Goal: show, with numbers on public data, that occlusion robustness in VOS comes 
 2. Permanent frame-0 entry vs pure FIFO.
 3. Trained with occluded variants vs clean only — does the synthetic protocol transfer to the real episodes DAVIS already contains.
 4. ViT-S/16 vs ViT-B/16 (both cached weights) — does the encoder matter once the memory is right.
-5. Optional: LoRA on the last 4 blocks + Gram consistency loss — only if 1–4 leave headroom.
+5. Optional: LoRA on the last 4 blocks + Gram consistency loss — not run.
+
+Outcome (11 Sep 2026): 1 gated > ungated by 1.4 J&F once the protocol has real hidden frames; 2 no effect with the locality window; 3 occlusion training buys leak/visibility, costs 1.6–2.8 J&F; 4 not run (disk); 5 not run.
 
 ## Metrics reported
 

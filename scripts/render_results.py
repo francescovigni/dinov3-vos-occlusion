@@ -109,15 +109,48 @@ def ablation_table(runs: Path) -> list[str]:
     return out
 
 
-def main() -> None:
-    runs = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("runs")
+START, END = "<!-- results:start -->", "<!-- results:end -->"
+
+
+def render(runs: Path) -> str:
     cfg = load_config("configs/default.yaml")
-    print("### Main comparison (DAVIS 2017 val, 30 sequences, largest object)\n")
-    print("\n".join(main_table(runs)))
-    print("\n### Where the accuracy goes (occ0, per-frame J)\n")
-    print("\n".join(split_table(runs, cfg)))
-    print("\n### v4 ablations\n")
-    print("\n".join(ablation_table(runs)))
+    parts = [
+        "#### Main comparison (DAVIS 2017 val, 30 sequences, largest object on frame 0)",
+        "",
+        *main_table(runs),
+        "",
+        "#### Where the accuracy goes (occ0, per-frame J)",
+        "",
+        *split_table(runs, cfg),
+        "",
+        "#### v4 ablations",
+        "",
+        *ablation_table(runs),
+    ]
+    return "\n".join(parts)
+
+
+def inject(text: str, block: str) -> str:
+    a, b = text.index(START), text.index(END)
+    return text[: a + len(START)] + "\n" + block + "\n" + text[b:]
+
+
+def main() -> None:
+    argv = sys.argv[1:]
+    targets = [argv[i + 1] for i, a in enumerate(argv) if a == "--inject"]
+    positional = [
+        a
+        for i, a in enumerate(argv)
+        if not a.startswith("--") and (i == 0 or argv[i - 1] != "--inject")
+    ]
+    runs = Path(positional[0]) if positional else Path("runs")
+    block = render(runs)
+    for t in targets:
+        path = Path(t)
+        path.write_text(inject(path.read_text(), block))
+        print(f"injected into {t}")
+    if not targets:
+        print(block)
 
 
 if __name__ == "__main__":
