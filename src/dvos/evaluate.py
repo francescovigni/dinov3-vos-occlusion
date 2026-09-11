@@ -15,7 +15,7 @@ import torch.nn.functional as F
 
 from dvos.backbone import pick_device
 from dvos.config import load_config
-from dvos.metrics import leak_ratio, recovery_delay, sequence_jf, visibility_auc
+from dvos.metrics import hidden_frames, leak_ratio, recovery_delay, sequence_jf, visibility_auc
 from dvos.model import MemoryVOS, build_model, track
 from dvos.propagate import propagate
 
@@ -138,8 +138,8 @@ def main() -> None:
             if occ_frames
             else float("nan")
         )
-        labels = np.array([visible[t].any() for t in range(1, len(preds))])
-        auc = visibility_auc(np.array(vis[1:]), labels)
+        hidden = hidden_frames(visible, meta.get("fraction"), cfg.occlusion.hidden_fraction)
+        auc = visibility_auc(np.array(vis[1:]), ~hidden[1:])
         rows.append(
             dict(
                 seq=meta["seq"],

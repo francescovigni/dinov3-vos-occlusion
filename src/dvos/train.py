@@ -20,7 +20,7 @@ from tqdm import tqdm
 
 from dvos.backbone import pick_device
 from dvos.config import load_config
-from dvos.metrics import jaccard
+from dvos.metrics import hidden_frames, jaccard
 from dvos.model import MemoryBank, MemoryVOS, bce_dice, build_model, to_feature_res, track
 
 
@@ -45,15 +45,18 @@ def sample_indices(n: int, length: int, gap_max: int, rng: random.Random) -> lis
     return idx
 
 
-def load_clip(d: Path, idx: list[int], device: torch.device):
+def load_clip(d: Path, idx: list[int], device: torch.device, hidden_thr: float = 0.9):
+    """Features (T,C,h,w), visible masks (T,1,4h,4w) and hidden flags (T,) for the frames ``idx``."""
     feats = np.load(d / "feats.npy", mmap_mode="r")[idx]
     vis = np.load(d / "masks.npz")["visible"][idx]
+    fraction = np.array(json.loads((d / "meta.json").read_text())["fraction"])[idx]
+    hidden = torch.from_numpy(hidden_frames(vis, fraction, hidden_thr)).to(device)
     f = torch.from_numpy(np.array(feats, dtype=np.float32, copy=True)).to(device)
     m = torch.from_numpy(np.array(vis, dtype=np.float32, copy=True)).unsqueeze(1)  # (T,1,H,W)
     h, w = f.shape[2:]
     # area pooling to a non-divisible size is unsupported on MPS: resize on CPU, then move
     m = (F.interpolate(m, size=(4 * h, 4 * w), mode="area") > 0.5).float().to(device)
-    return f, m
+    return f, m, hidden
 
 
 @torch.no_grad()
@@ -75,7 +78,7 @@ def validate(model: MemoryVOS, dirs: list[Path], mc, device: torch.device) -> fl
     return float(np.mean(js)) if js else float("nan")
 
 
-def train_clip(model: MemoryVOS, feats, masks, mc, tf: float, rng: random.Random):
+def train_clip(model: MemoryVOS, feats, masks, hidden, mc, tf: float, rng: random.Random):
     """One clip: frame 0 from ground truth, then predict, accumulate losses, write memory."""
     length = feats.shape[0]
     h, w = feats.shape[2:]
@@ -86,7 +89,7 @@ def train_clip(model: MemoryVOS, feats, masks, mc, tf: float, rng: random.Random
     for t in range(1, length):
         o = model.step(feats[t : t + 1], mem)
         target = masks[t : t + 1]
-        vis_label = (target.sum() > 0).float().view(1, 1)
+        vis_label = (~hidden[t]).float().view(1, 1)
         lm = lm + bce_dice(o["mask_logits"], target)
         lv = lv + F.binary_cross_entropy_with_logits(o["vis_logit"], vis_label)
         if rng.random() < tf:
@@ -149,8 +152,8 @@ def main() -> None:
                 d = rng.choice(clips)
                 n = np.load(d / "feats.npy", mmap_mode="r").shape[0]
                 idx = sample_indices(n, tr.clip_len, tr.gap_max, rng)
-                feats, masks = load_clip(d, idx, device)
-                lm, lv = train_clip(model, feats, masks, mc, tf, rng)
+                feats, masks, hidden = load_clip(d, idx, device, cfg.occlusion.hidden_fraction)
+                lm, lv = train_clip(model, feats, masks, hidden, mc, tf, rng)
                 loss = tr.w_mask * lm + tr.w_vis * lv
                 opt.zero_grad(set_to_none=True)
                 loss.backward()

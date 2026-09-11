@@ -2,6 +2,7 @@ import numpy as np
 
 from dvos.metrics import (
     boundary_f,
+    hidden_frames,
     jaccard,
     leak_ratio,
     recovery_delay,
@@ -55,3 +56,11 @@ def test_visibility_auc():
     assert visibility_auc(np.array([0.1, 0.9, 0.8, 0.2]), np.array([0, 1, 1, 0])) == 1.0
     assert visibility_auc(np.array([0.9, 0.1]), np.array([0, 1])) == 0.0
     assert np.isnan(visibility_auc(np.array([0.5, 0.5]), np.array([1, 1])))
+
+
+def test_hidden_frames_uses_fraction_or_empty_mask():
+    vis = np.ones((4, 4, 4), bool)
+    vis[3] = False
+    frac = [0.0, 0.95, 0.5, 0.0]
+    assert hidden_frames(vis, frac, thr=0.9).tolist() == [False, True, False, True]
+    assert hidden_frames(vis, None).tolist() == [False, False, False, True]

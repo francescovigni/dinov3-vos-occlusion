@@ -16,8 +16,9 @@ occlusion:
   min_len: 4
   max_len: 12
   start_min: 2
-  scale: [0.8, 1.4]          # occluder size relative to target bbox
-  jitter: 0.15               # centre jitter as fraction of target bbox
+  scale: [1.2, 1.8]          # occluder size relative to target bbox: most episode frames fully hide it
+  jitter: 0.05               # centre jitter as fraction of target bbox
+  hidden_fraction: 0.9       # a frame counts as hidden when occluded fraction >= this or the mask is empty
 
 baseline:
   n_last: 7

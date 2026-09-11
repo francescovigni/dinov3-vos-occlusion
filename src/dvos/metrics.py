@@ -82,3 +82,10 @@ def visibility_auc(scores: np.ndarray, labels: np.ndarray) -> float:
     ranks = np.empty(len(scores), dtype=float)
     ranks[order] = np.arange(1, len(scores) + 1)
     return float((ranks[labels].sum() - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg))
+
+
+def hidden_frames(visible: np.ndarray, fraction, thr: float = 0.9) -> np.ndarray:
+    """(T,) bool: object effectively hidden — empty visible mask or occluded fraction >= thr."""
+    empty = ~visible.reshape(len(visible), -1).any(axis=1)
+    frac = np.asarray(fraction, dtype=float) if fraction is not None else np.zeros(len(visible))
+    return empty | (frac >= thr)
