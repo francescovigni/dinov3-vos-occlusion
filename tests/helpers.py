@@ -57,7 +57,7 @@ data: {{davis_root: {davis_root}, features_root: {features_root}, year: "2017", 
 backbone: {{name: dinov3_vits16, repo: null, weights: null, device: cpu}}
 occlusion: {{min_len: 2, max_len: 3, start_min: 2, scale: [1.0, 1.2], jitter: 0.1}}
 baseline: {{n_last: 3, topk: 5, radius: 4, temperature: 0.07}}
-model: {{c_key: 16, c_value: 32, hidden: 32, memory_max: 4, vis_gate: 0.5, readout_topk: 16}}
+model: {{c_key: 16, c_value: 32, hidden: 32, memory_max: 4, vis_gate: 0.5, readout_topk: 16, pos_dim: 8, locality_radius: 2}}
 train: {{epochs: 1, lr: 1.0e-3, clip_len: 5, gap_max: 2, clips_per_epoch: 3, holdout: 1, teacher_forcing_start: 1.0, teacher_forcing_end: 0.5, w_mask: 1.0, w_vis: 0.5, seed: 0}}
 """
     )

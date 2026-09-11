@@ -1,6 +1,15 @@
 import torch
 
-from dvos.model import MemoryBank, MemoryVOS, bce_dice, readout, to_feature_res, track
+from dvos.model import (
+    MemoryBank,
+    MemoryVOS,
+    bce_dice,
+    build_model,
+    readout,
+    sincos_2d,
+    to_feature_res,
+    track,
+)
 
 
 def test_memory_bank_keeps_first_entry():
@@ -58,3 +67,38 @@ def test_sample_indices_respects_gaps_and_bounds():
         assert all(1 <= b - a <= 3 for a, b in zip(idx[:-1], idx[1:], strict=True))
     short = sample_indices(n=5, length=12, gap_max=3, rng=rng)
     assert short == [0, 1, 2, 3, 4]
+
+
+def test_sincos_and_locality_mask():
+    pos = sincos_2d(3, 5, 8)
+    assert pos.shape == (1, 8, 3, 5)
+    assert torch.allclose(pos[0, :4, 0, 0], pos[0, :4, 0, 4])  # y channels ignore x
+    assert not torch.allclose(pos[0, 4:, 0, 0], pos[0, 4:, 0, 4])  # x channels do not
+    mem = MemoryBank(max_size=3)
+    for _ in range(3):
+        mem.add(torch.zeros(1, 4, 3, 5), torch.zeros(1, 8, 3, 5))
+    m = mem.locality_mask(3, 5, radius=1)
+    assert m.shape == (15, 45) and m[:, :15].all()  # frame 0 readable everywhere
+    assert m[0, 15:30].sum() == 4  # corner query sees 4 neighbours in a later frame
+    assert mem.locality_mask(3, 5, radius=0) is None
+
+
+def test_masked_readout_ignores_disallowed_entries():
+    torch.manual_seed(0)
+    qk, mk = torch.randn(1, 4, 2), torch.randn(1, 4, 5)
+    mv = torch.arange(5.0).view(1, 1, 5).expand(1, 3, 5).clone()
+    mask = torch.zeros(2, 5, dtype=torch.bool)
+    mask[:, 4] = True
+    out = readout(qk, mk, mv, topk=3, mask=mask)
+    assert torch.allclose(out, torch.full((1, 3, 2), 4.0))
+
+
+def test_build_model_with_locality_forward():
+    m = build_model(
+        16, dict(c_key=8, c_value=16, hidden=16, readout_topk=4, pos_dim=8, locality_radius=1)
+    )
+    feats = torch.randn(4, 16, 6, 8)
+    first = torch.zeros(1, 1, 24, 32)
+    first[..., 4:12, 8:20] = 1.0
+    probs, vis = track(m.eval(), feats, first, memory_max=3)
+    assert len(probs) == 4 and probs[-1].shape == (1, 1, 24, 32)

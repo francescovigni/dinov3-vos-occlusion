@@ -1,8 +1,11 @@
 """Gated memory head on frozen DINOv3 features.
 
 Frame 0 (key, value) is permanent. Later frames are written only when the visibility head
-says the object is visible. Readout is attention from the current frame's keys to the
-memory keys; the decoder upsamples the readout to 1/4 resolution mask logits.
+says the object is visible, and always as hard masks. Readout is attention from the current
+frame's keys to the memory keys; keys carry 2-D position channels and reads from later
+memory frames are restricted to a spatial neighbourhood (frame 0 stays global, so a
+re-appearing object can be matched anywhere). The decoder upsamples the readout to 1/4
+resolution mask logits.
 """
 
 from __future__ import annotations
@@ -14,10 +17,24 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+def sincos_2d(h: int, w: int, dim: int, device=None) -> torch.Tensor:
+    """(1, dim, h, w) fixed 2-D sinusoidal position channels, ``dim`` divisible by 4."""
+    if dim % 4:
+        raise ValueError("pos_dim must be divisible by 4")
+    q = dim // 4
+    freqs = torch.exp(-math.log(10000.0) * torch.arange(q, device=device) / q)  # (q,)
+    ys = torch.arange(h, device=device).float()[:, None] * freqs[None]  # (h, q)
+    xs = torch.arange(w, device=device).float()[:, None] * freqs[None]  # (w, q)
+    py = torch.cat([ys.sin(), ys.cos()], dim=1).t()[:, :, None].expand(-1, h, w)  # (2q, h, w)
+    px = torch.cat([xs.sin(), xs.cos()], dim=1).t()[:, None, :].expand(-1, h, w)  # (2q, h, w)
+    return torch.cat([py, px], dim=0)[None]
+
+
 class KeyValueEncoder(nn.Module):
-    def __init__(self, c_in: int, c_key: int = 64, c_value: int = 256):
+    def __init__(self, c_in: int, c_key: int = 64, c_value: int = 256, pos_dim: int = 0):
         super().__init__()
-        self.key = nn.Conv2d(c_in, c_key, 1)
+        self.pos_dim = pos_dim
+        self.key = nn.Conv2d(c_in + pos_dim, c_key, 1)
         self.value = nn.Sequential(
             nn.Conv2d(c_in + 2, c_value, 3, padding=1),
             nn.GELU(),
@@ -25,6 +42,9 @@ class KeyValueEncoder(nn.Module):
         )
 
     def encode_key(self, feat: torch.Tensor) -> torch.Tensor:
+        if self.pos_dim:
+            pos = sincos_2d(feat.shape[-2], feat.shape[-1], self.pos_dim, feat.device)
+            feat = torch.cat([feat, pos.expand(feat.shape[0], -1, -1, -1)], dim=1)
         return self.key(feat)
 
     def encode_value(self, feat: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
@@ -33,33 +53,51 @@ class KeyValueEncoder(nn.Module):
 
 
 class MemoryBank:
-    """Keys (B,Ck,N) and values (B,Cv,N). Entry 0 is never evicted."""
+    """Keys (B,Ck,N) and values (B,Cv,N). Entry 0 is never evicted unless ``keep_first`` is off."""
 
     def __init__(self, max_size: int = 8, keep_first: bool = True):
         self.max_size = max(2, max_size)
         self.keep_first = keep_first
         self.keys: list[torch.Tensor] = []
         self.vals: list[torch.Tensor] = []
+        self.is_first: list[bool] = []
 
     def add(self, key: torch.Tensor, value: torch.Tensor) -> None:
+        self.is_first.append(not self.keys)
         self.keys.append(key.flatten(2))
         self.vals.append(value.flatten(2))
         if len(self.keys) > self.max_size:
             evict = 1 if self.keep_first else 0
-            del self.keys[evict], self.vals[evict]
+            del self.keys[evict], self.vals[evict], self.is_first[evict]
 
     def read(self) -> tuple[torch.Tensor, torch.Tensor]:
         return torch.cat(self.keys, dim=2), torch.cat(self.vals, dim=2)
+
+    def locality_mask(self, h: int, w: int, radius: int, device=None) -> torch.Tensor | None:
+        """(hw, N) bool: frame-0 entries readable everywhere, later entries within ``radius``."""
+        if radius <= 0:
+            return None
+        from dvos.propagate import neighborhood_mask
+
+        nb = neighborhood_mask(h, w, radius, device)
+        full = torch.ones_like(nb)
+        return torch.cat([full if f else nb for f in self.is_first], dim=1)
 
     def __len__(self) -> int:
         return len(self.keys)
 
 
 def readout(
-    qk: torch.Tensor, mk: torch.Tensor, mv: torch.Tensor, topk: int | None = None
+    qk: torch.Tensor,
+    mk: torch.Tensor,
+    mv: torch.Tensor,
+    topk: int | None = None,
+    mask: torch.Tensor | None = None,
 ) -> torch.Tensor:
-    """qk (B,Ck,Q), mk (B,Ck,N), mv (B,Cv,N) -> (B,Cv,Q)."""
+    """qk (B,Ck,Q), mk (B,Ck,N), mv (B,Cv,N) -> (B,Cv,Q). ``mask`` (Q,N) bool restricts reads."""
     logits = torch.einsum("bcq,bcn->bqn", qk, mk) / math.sqrt(qk.shape[1])
+    if mask is not None:
+        logits = logits.masked_fill(~mask[None], float("-inf"))
     n = logits.shape[-1]
     if topk is not None and topk < n:
         vals, idx = logits.topk(topk, dim=-1)
@@ -107,28 +145,57 @@ class MemoryVOS(nn.Module):
         c_value: int = 256,
         hidden: int = 256,
         readout_topk: int | None = 32,
+        pos_dim: int = 0,
+        locality_radius: int = 0,
     ):
         super().__init__()
-        self.kv = KeyValueEncoder(c_in, c_key, c_value)
+        self.kv = KeyValueEncoder(c_in, c_key, c_value, pos_dim)
         self.decoder = Decoder(c_value + c_in, hidden)
         self.vis = VisibilityHead(c_value)
         self.readout_topk = readout_topk
+        self.locality_radius = locality_radius
 
     def encode(
         self, feat: torch.Tensor, mask_lr: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
         return self.kv.encode_key(feat), self.kv.encode_value(feat, mask_lr)
 
-    def forward(self, feat: torch.Tensor, mk: torch.Tensor, mv: torch.Tensor) -> dict:
+    def forward(
+        self,
+        feat: torch.Tensor,
+        mk: torch.Tensor,
+        mv: torch.Tensor,
+        mask: torch.Tensor | None = None,
+    ) -> dict:
         B, C, h, w = feat.shape
         qk = self.kv.encode_key(feat).flatten(2)
-        r = readout(qk, mk, mv, self.readout_topk)  # (B,Cv,hw)
+        r = readout(qk, mk, mv, self.readout_topk, mask)  # (B,Cv,hw)
         dec_in = torch.cat([r.view(B, -1, h, w), feat], dim=1)
         return dict(mask_logits=self.decoder(dec_in), vis_logit=self.vis(r), readout=r)
 
 
+def build_model(c_in: int, mc) -> MemoryVOS:
+    """Construct from a config namespace or dict; missing keys keep the v1 defaults."""
+    get = (lambda k, d: mc.get(k, d)) if isinstance(mc, dict) else (lambda k, d: getattr(mc, k, d))
+    return MemoryVOS(
+        c_in,
+        get("c_key", 64),
+        get("c_value", 256),
+        get("hidden", 256),
+        get("readout_topk", 32),
+        get("pos_dim", 0),
+        get("locality_radius", 0),
+    )
+
+
 def to_feature_res(mask: torch.Tensor, size: tuple[int, int]) -> torch.Tensor:
-    """(B,1,H,W) in [0,1] -> (B,1,h,w) by area averaging."""
+    """(B,1,H,W) in [0,1] -> (B,1,h,w) by area averaging.
+
+    MPS has no adaptive pooling for non-divisible sizes; fall back to CPU for that case.
+    """
+    divisible = mask.shape[-2] % size[0] == 0 and mask.shape[-1] % size[1] == 0
+    if mask.device.type == "mps" and not divisible:
+        return F.interpolate(mask.float().cpu(), size=size, mode="area").to(mask.device)
     return F.interpolate(mask.float(), size=size, mode="area")
 
 
@@ -158,13 +225,15 @@ def track(
     probs, vis = [first_mask.float()], [1.0]
     for t in range(1, T):
         mk, mv = mem.read()
-        out = model(feats[t : t + 1], mk, mv)
+        out = model(
+            feats[t : t + 1], mk, mv, mem.locality_mask(h, w, model.locality_radius, feats.device)
+        )
         p = torch.sigmoid(out["mask_logits"])
         v = float(torch.sigmoid(out["vis_logit"]).item())
         probs.append(p)
         vis.append(v)
         if v > vis_gate:
-            # write a hard mask: the value encoder was trained on binary ground truth, and
-            # soft, blurry masks fed back frame after frame erode the object (v1 failure)
+            # hard mask: the value encoder is trained on binary ground truth, and soft masks
+            # fed back frame after frame eroded the object (v1 failure)
             mem.add(*model.encode(feats[t : t + 1], to_feature_res((p > 0.5).float(), (h, w))))
     return probs, vis

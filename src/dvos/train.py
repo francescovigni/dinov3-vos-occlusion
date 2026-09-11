@@ -21,7 +21,7 @@ from tqdm import tqdm
 from dvos.backbone import pick_device
 from dvos.config import load_config
 from dvos.metrics import jaccard
-from dvos.model import MemoryBank, MemoryVOS, bce_dice, to_feature_res, track
+from dvos.model import MemoryBank, MemoryVOS, bce_dice, build_model, to_feature_res, track
 
 
 def list_clips(features_root: Path, split: str, variants: list[str] | None = None) -> list[Path]:
@@ -85,7 +85,9 @@ def train_clip(model: MemoryVOS, feats, masks, mc, tf: float, rng: random.Random
     lv = torch.zeros((), device=feats.device)
     for t in range(1, length):
         mk, mv = mem.read()
-        o = model(feats[t : t + 1], mk, mv)
+        o = model(
+            feats[t : t + 1], mk, mv, mem.locality_mask(h, w, model.locality_radius, feats.device)
+        )
         target = masks[t : t + 1]
         vis_label = (target.sum() > 0).float().view(1, 1)
         lm = lm + bce_dice(o["mask_logits"], target)
@@ -130,7 +132,7 @@ def main() -> None:
         raise SystemExit("holdout leaves no training sequences")
 
     c_in = int(np.load(clips[0] / "feats.npy", mmap_mode="r").shape[1])
-    model = MemoryVOS(c_in, mc.c_key, mc.c_value, mc.hidden, mc.readout_topk).to(device)
+    model = build_model(c_in, mc).to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=tr.lr, weight_decay=1e-4)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=epochs * clips_per_epoch)
     out = Path(args.out)

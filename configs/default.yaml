@@ -32,6 +32,8 @@ model:
   memory_max: 8
   vis_gate: 0.5
   readout_topk: 32
+  pos_dim: 32                # 2-D sinusoidal position channels in the keys (0 = off)
+  locality_radius: 12        # recent-memory reads limited to this patch radius; frame 0 global (0 = off)
 
 train:
   epochs: 15

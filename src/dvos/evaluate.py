@@ -16,7 +16,7 @@ import torch.nn.functional as F
 from dvos.backbone import pick_device
 from dvos.config import load_config
 from dvos.metrics import leak_ratio, recovery_delay, sequence_jf, visibility_auc
-from dvos.model import MemoryVOS, track
+from dvos.model import MemoryVOS, build_model, track
 from dvos.propagate import propagate
 
 
@@ -100,9 +100,9 @@ def main() -> None:
     model = None
     if args.method == "model":
         ck = torch.load(args.checkpoint, map_location="cpu")
-        mc = cfg.model
         c_in = int(ck.get("c_in") or ck["model"]["kv.key.weight"].shape[1])
-        model = MemoryVOS(c_in, mc.c_key, mc.c_value, mc.hidden, mc.readout_topk)
+        model_cfg = ck.get("config", {}).get("model", None) or cfg.model
+        model = build_model(c_in, model_cfg)
         model.load_state_dict(ck["model"])
         model.eval().to(device)
     gate = cfg.model.vis_gate if args.vis_gate is None else args.vis_gate
