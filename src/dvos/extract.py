@@ -41,6 +41,13 @@ def main() -> None:
     ap.add_argument("--split", default="val")
     ap.add_argument("--seqs", nargs="*", default=None, help="subset of sequences")
     ap.add_argument("--max-frames", type=int, default=None, help="debug: truncate sequences")
+    ap.add_argument(
+        "--stride",
+        type=int,
+        default=1,
+        help="keep every k-th frame (train-time augmentation, saves disk)",
+    )
+    ap.add_argument("--variants", nargs="*", default=None, help="override data.variants")
     args = ap.parse_args()
     cfg = load_config(args.config)
     davis = Davis(cfg.data.davis_root, args.split, cfg.data.year, cfg.data.resolution)
@@ -48,10 +55,13 @@ def main() -> None:
         cfg.backbone.name, cfg.backbone.repo, cfg.backbone.weights, cfg.backbone.device
     )
     size = tuple(cfg.data.size)
-    bank = build_bank(cfg) if any(v.startswith("occ") for v in cfg.data.variants) else None
+    variants = args.variants or list(cfg.data.variants)
+    bank = build_bank(cfg) if any(v.startswith("occ") for v in variants) else None
     seqs = args.seqs or davis.sequences
     for seq in tqdm(seqs, desc=f"extract {args.split}"):
         imgs, msks = davis.load(seq)
+        if args.stride > 1:
+            imgs, msks = imgs[:: args.stride], msks[:: args.stride]
         if args.max_frames:
             imgs, msks = imgs[: args.max_frames], msks[: args.max_frames]
         ids = Davis.object_ids(msks[0])
@@ -60,7 +70,7 @@ def main() -> None:
         target = ids[0]
         full = [(m == target) for m in msks]
         real = real_occlusion_episodes(msks, target)
-        for variant in cfg.data.variants:
+        for variant in variants:
             out = feature_dir(cfg, args.split, seq, variant)
             if (out / "feats.npy").exists():
                 continue
@@ -108,6 +118,7 @@ def main() -> None:
                 image_size=list(imgs[0].shape[:2]),
                 feature_size=list(feats.shape[2:]),
                 backbone=cfg.backbone.name,
+                stride=args.stride,
                 input_size=list(size),
                 n_frames=len(imgs),
             )

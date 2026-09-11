@@ -7,7 +7,7 @@ Goal: show, with numbers on public data, that occlusion robustness in VOS comes 
 | # | What | Done when |
 |---|---|---|
 | M0 | Scaffold, unit tests, config | `make test` green on a clean clone |
-| M1 | Feature cache: DAVIS val+train, `clean` + `occ0` + `occ1` at 480×864, ViT-S/16 fp16 | `data/features/{val,train}` populated, ~6 GB |
+| M1 | Feature cache at 480×864, ViT-S/16 fp16 (1.24 MB/frame): val every frame × 3 variants (~7.4 GB), train stride 2 × `clean`,`occ0` (~5.2 GB) | `data/features/{val,train}` populated, ~13 GB |
 | M2 | Zero-shot baseline on val, clean and occluded | `runs/baseline_*/summary.md` |
 | M3 | Trained memory head, laptop budget (≤ 2 h on M3 Pro) | `runs/head_*/summary.md`, curve in `log.csv` |
 | M4 | Ablations (below) | one table in README |
@@ -27,7 +27,7 @@ J, F, J&F on val (frames 1..T-1, DAVIS convention); `recovery_delay` median and 
 
 ## Compute
 
-Extraction: ~50 ms/frame ViT-S at 480×864 on MPS → ~6 k frames × 3 variants ≈ 15 min. Training on cached features: head only, clip length 8, 400 clips/epoch, 15 epochs ≈ 40–60 min. No GPU cluster needed.
+Extraction: ~50 ms/frame ViT-S at 480×864 on MPS → ~10 k frame-variants ≈ 10 min. Train frames are cached at stride 2: standard VOS practice samples frames with gaps anyway, and the full cache would not fit the 19 GB free on this laptop. Training on cached features: head only, clip length 8, 400 clips/epoch, 15 epochs ≈ 40–60 min. No GPU cluster needed.
 
 ## Risks
 

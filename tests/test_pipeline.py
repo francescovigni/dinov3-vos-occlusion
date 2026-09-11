@@ -51,6 +51,21 @@ def test_02_extract_is_idempotent_and_seeded(pipeline, monkeypatch):
     assert extract.seq_seed("bear", 0) != extract.seq_seed("bear", 1) != extract.seq_seed("bmx", 1)
 
 
+def test_02b_stride_and_variant_override(pipeline, monkeypatch, tmp_path):
+    cfg = write_config(tmp_path / "cfg.yaml", pipeline["root"] / "DAVIS", tmp_path / "features")
+    monkeypatch.setattr(extract, "load_dinov3", lambda *a, **k: FakeBackbone().eval())
+    run(
+        monkeypatch,
+        extract,
+        ["--config", str(cfg), "--split", "val", "--stride", "2", "--variants", "clean"],
+    )
+    d = tmp_path / "features" / "val" / "seqc"
+    assert sorted(p.name for p in d.iterdir()) == ["clean"]
+    meta = json.loads((d / "clean" / "meta.json").read_text())
+    assert meta["stride"] == 2 and meta["n_frames"] == 4
+    assert np.load(d / "clean" / "feats.npy").shape[0] == 4
+
+
 def test_03_baseline(pipeline, monkeypatch):
     out = pipeline["root"] / "runs" / "baseline"
     run(

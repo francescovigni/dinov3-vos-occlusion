@@ -16,9 +16,10 @@ lint:
 data:
 	./scripts/download_davis.sh
 
+# val: every frame, all variants (evaluation). train: stride 2, two variants (~5 GB instead of ~16).
 extract:
 	$(VENV)/python -m dvos.extract --config $(CFG) --split val
-	$(VENV)/python -m dvos.extract --config $(CFG) --split train
+	$(VENV)/python -m dvos.extract --config $(CFG) --split train --stride 2 --variants clean occ0
 
 baseline:
 	for v in clean occ0 occ1; do $(VENV)/python -m dvos.evaluate --config $(CFG) --method baseline --variant $$v --out runs/baseline_$$v --save-masks; done
