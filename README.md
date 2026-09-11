@@ -29,7 +29,7 @@ The backbone stays frozen. Fine-tuning dense features without an anchor degrades
 
 ## Data
 
-- **DAVIS 2017 trainval 480p** (public, see davischallenge.org for licence terms). Train split for the head, val split for reporting.
+- **DAVIS 2017 trainval 480p** — 60 train / 30 val sequences, 4,209 / 1,999 frames, CC BY 4.0 (Pont-Tuset et al. 2017). Train split for the head, val split for every reported number.
 - **Synthetic occlusions with ground truth**: objects cut from *other* DAVIS sequences are pasted over the target for a contiguous episode of frames. Visible mask, full mask, occluder mask and occlusion fraction are stored per frame, so recovery can be measured exactly.
 - **Real occlusions** are detected from the annotation itself: an object whose mask area drops to zero between two non-empty frames.
 
@@ -86,4 +86,4 @@ Weights: `backbone.py` looks for DINOv3 checkpoints in `~/.cache/torch/hub/check
 
 ## Licence
 
-Code MIT. DINOv3 weights under the DINOv3 licence. DAVIS under its own terms.
+Code MIT. DINOv3 weights under Meta's DINOv3 licence. DAVIS 2017 under CC BY 4.0; cite Pont-Tuset et al., *The 2017 DAVIS Challenge on Video Object Segmentation*, arXiv:1704.00675.
