@@ -1,0 +1,45 @@
+data:
+  davis_root: data/DAVIS
+  features_root: data/features
+  year: "2017"
+  resolution: 480p
+  size: [480, 864]          # multiples of 16; DAVIS 480p frames are 480x854
+  variants: [clean, occ0, occ1]   # occN = synthetic occlusion with seed N
+
+backbone:
+  name: dinov3_vits16
+  repo: null                 # null -> ../dinov3 or $DINOV3_REPO
+  weights: null              # null -> ~/.cache/torch/hub/checkpoints/<name>_pretrain_lvd1689m*.pth
+  device: auto
+
+occlusion:
+  min_len: 4
+  max_len: 12
+  start_min: 2
+  scale: [0.8, 1.4]          # occluder size relative to target bbox
+  jitter: 0.15               # centre jitter as fraction of target bbox
+
+baseline:
+  n_last: 7
+  topk: 5
+  radius: 12
+  temperature: 0.07
+
+model:
+  c_key: 64
+  c_value: 256
+  hidden: 256
+  memory_max: 8
+  vis_gate: 0.5
+  readout_topk: 32
+
+train:
+  epochs: 20
+  lr: 2.0e-4
+  clip_len: 8
+  clips_per_epoch: 400
+  teacher_forcing_start: 1.0
+  teacher_forcing_end: 0.2
+  w_mask: 1.0
+  w_vis: 0.5
+  seed: 0

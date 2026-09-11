@@ -1,0 +1,11 @@
+data/DAVIS/
+data/features/
+data/*.zip
+runs/
+__pycache__/
+*.pt
+*.pth
+.venv/
+.DS_Store
+.pytest_cache/
+.ruff_cache/

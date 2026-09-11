@@ -1,0 +1,23 @@
+[project]
+name = "dvos"
+version = "0.1.0"
+description = "Video object segmentation under occlusion with a frozen DINOv3 encoder and a gated memory head"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "tests"]
+addopts = "-q --strict-markers"
+
+[tool.coverage.run]
+source = ["src/dvos"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
+ignore = ["E501", "C408"]
