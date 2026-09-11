@@ -30,7 +30,7 @@ The backbone stays frozen. Fine-tuning dense features without an anchor degrades
 ## Data
 
 - **DAVIS 2017 trainval 480p** — 60 train / 30 val sequences, 4,209 / 1,999 frames, CC BY 4.0 (Pont-Tuset et al. 2017). Train split for the head, val split for every reported number.
-- **Synthetic occlusions with ground truth**: objects cut from *other* DAVIS sequences are pasted over the target for a contiguous episode of frames. Visible mask, full mask, occluder mask and occlusion fraction are stored per frame, so recovery can be measured exactly.
+- **Synthetic occlusions with ground truth**: objects cut from *training* sequences are pasted over the target for a contiguous episode of 4–12 frames, sized 1.2–1.8× the target's box so the episode actually hides it. Visible mask, full mask, occluder mask and occluded fraction are stored per frame; a frame counts as **hidden** when the fraction is ≥ 0.9 or the mask is empty. That label trains the visibility head, scores `vis AUC`, and calibrates the gate.
 - **Real occlusions** are detected from the annotation itself: an object whose mask area drops to zero between two non-empty frames.
 
 Everything is public. No client data, no client names.
@@ -43,7 +43,7 @@ Standard **J** (region IoU), **F** (boundary), **J&F**. Plus three occlusion-spe
 |---|---|
 | `recovery_delay` | how many frames after the occluder leaves until J ≥ 0.5 again |
 | `leak_ratio` | how much of the predicted mask sits on the occluder while the object is hidden |
-| `visibility_auc` | does the model know when it cannot see the object |
+| `visibility_auc` | does the model know when it cannot see the object (hidden = fraction ≥ 0.9 or empty mask) |
 
 ## Layout
 
@@ -81,7 +81,8 @@ Weights: `backbone.py` looks for DINOv3 checkpoints in `~/.cache/torch/hub/check
 - It does not fine-tune DINOv3. Every number is "frozen features + small head". A LoRA ablation is planned, not done.
 - It does not handle out-of-view the same as occlusion. Both look like "mask area zero" in DAVIS; the synthetic protocol only produces occlusions.
 - Single-target evaluation everywhere: the largest object on frame 0 of each sequence (the first id is degenerate in two val sequences). Multi-object DAVIS scoring is not implemented.
-- Laptop compute: ViT-S/16 at 480×864, features cached once. No claim about ViT-L or 7B behaviour.
+- Laptop compute: ViT-S/16 at 480×864, features cached once; the training split is cached at temporal stride 2 to fit the disk. No claim about ViT-L or 7B behaviour.
+- The gate threshold is calibrated on eight held-out *training* sequences, never on val. Those eight are also the only validation signal during training, so checkpoint selection sees no val frame.
 - Results, until `runs/` has them.
 
 ## Licence

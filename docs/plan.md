@@ -9,13 +9,13 @@ Goal: show, with numbers on public data, that occlusion robustness in VOS comes 
 | M0 | Scaffold, unit tests, config | `make test` green on a clean clone |
 | M1 | Feature cache at 480×864, ViT-S/16 fp16 (1.24 MB/frame): val every frame × 3 variants (~7.4 GB), train stride 2 × `clean`,`occ0` (~5.2 GB) | `data/features/{val,train}` populated, ~13 GB |
 | M2 | Zero-shot baseline on val, clean and occluded | `runs/baseline_*/summary.md` |
-| M3 | Trained memory head, laptop budget (≤ 2 h on M3 Pro) | `runs/head_*/summary.md`, curve in `log.csv` |
+| M3 | Trained memory head, laptop budget (≤ 1 h on M3 Pro per run) | `runs/head_*/summary.md`, held-out curve in `log.csv`, gate in `gate.json` |
 | M4 | Ablations (below) | one table in README |
 | M5 | Write-up: article in `docs/`, qualitative figure best/median/worst, "what this does NOT show" | README results section |
 
 ## Ablations, in order of expected signal
 
-1. Gated vs ungated memory write (same head, `vis_gate` 0.5 vs 0.0) — the headline.
+1. Gated vs ungated memory write (same head, calibrated gate vs 0.0) — the headline.
 2. Permanent frame-0 entry vs pure FIFO.
 3. Trained with occluded variants vs clean only — does the synthetic protocol transfer to the real episodes DAVIS already contains.
 4. ViT-S/16 vs ViT-B/16 (both cached weights) — does the encoder matter once the memory is right.
@@ -39,3 +39,10 @@ Extraction: ~50 ms/frame ViT-S at 480×864 on MPS → ~10 k frame-variants ≈ 1
 ## Reading
 
 DINOv3 (Siméoni et al. 2025, arXiv 2508.10104), DINO video-segmentation protocol (Caron et al. 2021), XMem (Cheng & Schwing 2022), Cutie (Cheng et al. 2024), SAM 2 memory attention (Ravi et al. 2024), Space-Time Correspondence as a Contrastive Random Walk (Jabri et al. 2020).
+
+## Log of protocol decisions
+
+- **Target = largest object on frame 0** (11 Sep). First object id is a 0.0 % speck in `lab-coat`.
+- **Train cache at stride 2, clean + occ0 only** (11 Sep). Disk.
+- **Occluders 1.2–1.8×, jitter 0.05, hidden = fraction ≥ 0.9 or empty** (11 Sep). The 0.8–1.4× protocol produced 39 hidden frames in 1,969; nothing to learn or gate on.
+- **Gate calibrated on held-out training sequences** (11 Sep). A fixed 0.5 threshold never fired: the visibility head ranks correctly (AUC 0.97) but is biased by the class imbalance.
