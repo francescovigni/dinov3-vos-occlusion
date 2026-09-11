@@ -34,7 +34,7 @@ model:
   readout_topk: 32
 
 train:
-  epochs: 20
+  epochs: 15
   lr: 2.0e-4
   clip_len: 8
   clips_per_epoch: 400

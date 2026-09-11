@@ -30,11 +30,10 @@ def load_clip(d: Path, start: int, length: int, device: torch.device):
     masks = np.load(d / "masks.npz")
     vis = masks["visible"][start : start + length]
     f = torch.from_numpy(np.array(feats, dtype=np.float32, copy=True)).to(device)
-    m = (
-        torch.from_numpy(np.array(vis, dtype=np.float32, copy=True)).unsqueeze(1).to(device)
-    )  # (T,1,H,W)
+    m = torch.from_numpy(np.array(vis, dtype=np.float32, copy=True)).unsqueeze(1)  # (T,1,H,W)
     h, w = f.shape[2:]
-    m = (F.interpolate(m, size=(4 * h, 4 * w), mode="area") > 0.5).float()
+    # area pooling to a non-divisible size is unsupported on MPS: resize on CPU, then move
+    m = (F.interpolate(m, size=(4 * h, 4 * w), mode="area") > 0.5).float().to(device)
     return f, m
 
 

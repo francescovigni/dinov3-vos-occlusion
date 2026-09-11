@@ -27,7 +27,7 @@ J, F, J&F on val (frames 1..T-1, DAVIS convention); `recovery_delay` median and 
 
 ## Compute
 
-Extraction: ~50 ms/frame ViT-S at 480×864 on MPS → ~6 k frames × 3 variants ≈ 15 min. Training on cached features: head only, clip length 8, 400 clips/epoch, 20 epochs ≈ 1–2 h. No GPU cluster needed.
+Extraction: ~50 ms/frame ViT-S at 480×864 on MPS → ~6 k frames × 3 variants ≈ 15 min. Training on cached features: head only, clip length 8, 400 clips/epoch, 15 epochs ≈ 40–60 min. No GPU cluster needed.
 
 ## Risks
 
