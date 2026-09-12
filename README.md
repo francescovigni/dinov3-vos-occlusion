@@ -168,7 +168,43 @@ Same head, same metrics, same pipeline (`scripts/run_polyp.sh`), on public colon
 **Protocol differences from study 1.** A clip starts at its first annotated frame (54 of 60 test clips begin before the polyp is in view). The target is the largest box on that frame, followed through the unlabelled boxes by IoU association and nearest centre after a gap; on box datasets the predicted mask is scored by its bounding box. **Real episodes** are runs of box-less frames between boxed frames: 69 in the 60 test clips (median 11 frames, p90 35), 90 in the 100 training clips (median 14, p90 51, 24 of them 30+ frames). Occlusion and leaving the field of view are one class in the annotation and are reported as one. The synthetic instrument occlusions (`occ0`) are kept as the controlled variant. Features are cached as uint8 with a per-tensor scale to fit the disk.
 
 <!-- polyp-results:start -->
-*Results pending: the pipeline is running.*
+**Result, in one line:** frozen DINOv3 features do not separate a polyp from the mucosa well enough to track it. Zero-shot propagation, which reached J&F 0.77 on DAVIS, reaches **0.137** (box IoU) on the LDPolypVideo test clips; the same head that never beat zero-shot on DAVIS beats it here by 7 points (**0.208**), and on the mask-level PolypGen set it removes the leak onto instruments entirely (0.52 → 0.01) and separates hidden from visible frames (visibility AUC 0.48 → 0.74). The encoder is the bottleneck, which is the case for the adaptation step this study did not run.
+
+#### LDPolypVideo test, 60 clips, box IoU on filled boxes
+
+| method | clean J&F | occ0 J&F | occ0 leak | occ0 vis AUC | real episodes never re-acquired (clean) |
+|---|---|---|---|---|---|
+| zero-shot k-NN propagation | 0.137 | 0.136 | 0.078 | 0.642 | 21 / 38 |
+| head, gated (calibrated gate 0.4) | 0.208 | 0.196 | 0.121 | 0.696 | 19 / 38 |
+| head, ungated writes | 0.213 | 0.196 | 0.113 | 0.698 | 17 / 38 |
+| head, FIFO memory | – | 0.192 | 0.124 | 0.691 | – |
+
+#### PolypGen positive sequences, 7 held-out sequences, mask J
+
+| method | clean J | clean F | occ0 J&F | occ0 leak | occ0 vis AUC |
+|---|---|---|---|---|---|
+| zero-shot k-NN propagation | 0.457 | 0.422 | 0.292 | 0.517 | 0.478 |
+| head trained on LDPolypVideo | 0.462 | 0.303 | 0.301 | **0.010** | **0.742** |
+
+#### Where the accuracy goes (LDPolypVideo, per-frame box IoU)
+
+| method | inside real episode (GT empty) | 10 frames after | elsewhere | median re-acquisition delay |
+|---|---|---|---|---|
+| zero-shot, clean | 0.876 | 0.062 | 0.113 | 12 |
+| head, clean | 0.598 | 0.169 | 0.241 | 12 |
+| zero-shot, occ0 | 0.325 | 0.087 | 0.125 | 9 |
+| head, occ0 | 0.262 | 0.197 | 0.250 | 4.5 |
+
+**How to read it.**
+
+- "Inside real episode" is inflated by the empty-equals-empty convention: the ground truth there is an empty box, so a tracker that has already lost the polyp and predicts nothing scores 1.0. The column that matters is *elsewhere*: 0.11 for zero-shot, 0.25 for the head. Both are failures of localisation, not of occlusion handling.
+- Polyps are small for a patch-16 encoder: median box 2.1 % of the frame, short side ≈ 4 patches, 11 % under 2 patches. The zero-shot k-NN locks onto mucosa texture within a few frames; the head, with position channels and a locality window, holds on longer and re-acquires faster after real disappearances (median 4.5 frames vs 9 on occ0) but from a weak signal.
+- Training saw 392 held-out frames with 31 hidden ones; the calibrated gate (balanced accuracy 0.58) barely matters, and gated vs ungated writes are within noise here. The visibility head still transfers: on PolypGen the leak onto the instrument drops from 0.52 to 0.01.
+- One training run, one seed, boxes with no identities followed by a heuristic. The numbers say "encoder", not "method": the next experiment is LoRA on the last DINOv3 blocks with a Gram anchor on public polyp stills (Kvasir-SEG is on disk), then this table again.
+
+*Videos:* `docs/videos/polyp_133_occ0.gif` (best occluded clip) and `docs/videos/polyp_144_clean.gif` (best clean clip), baseline left, head right.
+
+![polyp 133, occ0](docs/videos/polyp_133_occ0.gif)
 <!-- polyp-results:end -->
 
 ## What this does NOT show

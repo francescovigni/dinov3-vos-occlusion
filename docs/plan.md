@@ -58,10 +58,10 @@ Same head, same metrics, same pipeline; the DAVIS numbers become the control. Wh
 |---|---|---|
 | P0 | Data on disk with licences noted: LDPolypVideo (boxes, 160 videos), PolypGen positive sequences (masks), Kvasir-Instrument (occluder bank), Kvasir-SEG (stills for adaptation). SUN-SEG requested separately | `data/polyp/` populated, `scripts/download_polyp*.sh` |
 | P1 ✅ | Adapters + real-episode statistics: how many polyps disappear and come back, for how long | below |
-| P2 | Feature cache (576×768, ViT-S/16) + zero-shot propagation on both datasets | `runs/polyp_baseline_*` |
-| P3 | Head v4 retrained on polyp sequences with instrument occluders, gate calibrated on held-out videos | `runs/polyp_head_*` |
-| P4 | LoRA on the last DINOv3 blocks with a Gram anchor, trained on public polyp stills only | `runs/polyp_lora_*` |
-| P5 | Write-up + overlay videos | README section, `docs/article_polyp.md` |
+| P2 ✅ | Feature cache (480×560, ViT-S/16, uint8) + zero-shot propagation on both datasets | `runs/polyp_baseline_*` — J&F 0.137 box IoU, 0.440 mask J |
+| P3 ✅ | Head v4 retrained on polyp sequences with instrument occluders, gate calibrated on held-out videos | `runs/polyp_head_*` — 0.208 / 0.196; leak on PolypGen 0.52 → 0.01 |
+| P4 | LoRA on the last DINOv3 blocks with a Gram anchor, trained on public polyp stills only — **the experiment the P2/P3 numbers call for** | `runs/polyp_lora_*` |
+| P5 ✅ | Write-up + overlay videos | README study-2 section, `docs/videos/polyp_*` |
 
 Metrics specific to this study: box IoU on LDPolypVideo (J on filled boxes), mask J on PolypGen; re-acquisition delay on *real* episodes; false re-detection rate after the polyp leaves (does the tracker latch onto a fold).
 
@@ -74,3 +74,7 @@ Confidentiality: public data only, nothing from the NDA'd work, no client names.
 **90 disappearance episodes in 43 videos** (a run of box-less frames between two boxed frames): median 14 frames, p90 51, max 135; 24 episodes last 30+ frames. Occlusion by folds/instruments and leaving the field of view are indistinguishable in the annotation and are reported as one class. The synthetic instrument occluders from Kvasir-Instrument are kept as a second, controlled variant.
 
 Disk budget: features at 480×560 are 0.8 MB/frame; both splits are cached at stride 2 with a per-video cap, `clean` + `occ0` only. The DAVIS caches were deleted to make room (regenerable in ~10 min).
+
+### P2/P3 outcome (12 Sep 2026)
+
+Frozen DINOv3 ViT-S/16 is the bottleneck on colonoscopy: zero-shot propagation 0.137 box-IoU J&F on the 60 test clips (0.77 on DAVIS), head 0.208. Elsewhere-J 0.11 vs 0.25. Polyps: median 2.1 % of frame, ≈ 4 patches short side. On PolypGen masks the head kills the leak (0.52 → 0.01) and separates hidden frames (AUC 0.74). Decision: no more head work on frozen features; P4 (LoRA + Gram anchor on Kvasir-SEG/PolypGen stills) is the next step.

@@ -110,3 +110,8 @@ The tables are generated from `runs/` by `scripts/render_results.py`; the README
 ## What this would take on your data
 
 A folder of frames, one mask on the first frame per object, and roughly a minute of GPU per thousand frames for feature extraction. The head is small enough to train on a laptop. The synthetic occlusion protocol needs no annotation beyond what the first-frame mask already gives.
+
+
+## Postscript — the same head on colonoscopy (12 Sep 2026)
+
+Study 2 in the README repeats the protocol on public colonoscopy data (LDPolypVideo boxes, PolypGen masks, Kvasir-Instrument occluders), where polyps really do vanish behind folds and instruments and leave the field of view: 69 real episodes in the 60 test clips. The outcome inverts study 1. Zero-shot propagation on frozen DINOv3 collapses to box-IoU J&F 0.137; the head reaches 0.208 and, on mask-level PolypGen, removes the leak onto instruments (0.52 → 0.01) with a visibility AUC of 0.74. Frozen features that were the strong baseline on DAVIS are the limiting factor on mucosa. The memory head's occlusion behaviour transfers; the appearance model does not. Adaptation of the encoder, not another head, is the next experiment.
