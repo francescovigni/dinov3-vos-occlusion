@@ -1,0 +1,59 @@
+# Colonoscopy study: polyp tracking under occlusion. Same head, same metrics as the DAVIS control.
+data:
+  dataset: ldpolypvideo
+  root: data/polyp/ldpolypvideo
+  features_root: data/features_polyp
+  size: [576, 768]            # LDPolypVideo native 768x576; multiples of 16
+  variants: [clean, occ0]
+  # DAVIS-only keys kept for the shared code paths
+  davis_root: data/DAVIS
+  year: "2017"
+  resolution: 480p
+
+backbone:
+  name: dinov3_vits16
+  repo: null
+  weights: null
+  device: auto
+
+occlusion:
+  bank: data/polyp/kvasir-instrument     # instruments as occluders (Kvasir-Instrument, CC BY 4.0)
+  fill_hull: true
+  min_len: 4
+  max_len: 12
+  start_min: 2
+  scale: [1.2, 1.8]
+  jitter: 0.05
+  hidden_fraction: 0.9
+
+baseline:
+  n_last: 7
+  topk: 5
+  radius: 12
+  temperature: 0.07
+
+model:
+  c_key: 64
+  c_value: 256
+  hidden: 256
+  memory_max: 8
+  vis_gate: 0.5
+  readout_topk: 32
+  pos_dim: 32
+  locality_radius: 12
+  use_prior: true
+  prior_topk: 5
+  prior_temperature: 0.07
+
+train:
+  epochs: 15
+  lr: 2.0e-4
+  clip_len: 12
+  gap_max: 2
+  clips_per_epoch: 300
+  holdout: 8
+  teacher_forcing_start: 1.0
+  teacher_forcing_end: 0.2
+  w_mask: 1.0
+  w_vis: 0.5
+  seed: 0

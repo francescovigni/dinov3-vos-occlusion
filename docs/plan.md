@@ -49,3 +49,20 @@ DINOv3 (Siméoni et al. 2025, arXiv 2508.10104), DINO video-segmentation protoco
 - **Occluders 1.2–1.8×, jitter 0.05, hidden = fraction ≥ 0.9 or empty** (11 Sep). The 0.8–1.4× protocol produced 39 hidden frames in 1,969; nothing to learn or gate on.
 - **Gate calibrated on held-out training sequences** (11 Sep). A fixed 0.5 threshold never fired: the visibility head ranks correctly (AUC 0.97) but is biased by the class imbalance.
 - **Metrics verified against the reference implementation** (11 Sep, late). J was identical; the first boundary-F implementation ran ~0.01 high (morphological gradient + ellipse kernel instead of the half-pixel boundary map + Euclidean disk). Re-implemented from the algorithm (the reference is GPL), verified to machine precision, last frame excluded as in the official protocol, all evaluations re-run.
+
+## Study 2 — polyp tracking under occlusion in colonoscopy (started 12 Sep 2026)
+
+Same head, same metrics, same pipeline; the DAVIS numbers become the control. What changes: real disappearance episodes exist in the annotations, the occluders are instruments, and the backbone will need adaptation.
+
+| # | What | Done when |
+|---|---|---|
+| P0 | Data on disk with licences noted: LDPolypVideo (boxes, 160 videos), PolypGen positive sequences (masks), Kvasir-Instrument (occluder bank), Kvasir-SEG (stills for adaptation). SUN-SEG requested separately | `data/polyp/` populated, `scripts/download_polyp*.sh` |
+| P1 | Adapters + real-episode statistics: how many polyps disappear and come back, for how long | table in this file |
+| P2 | Feature cache (576×768, ViT-S/16) + zero-shot propagation on both datasets | `runs/polyp_baseline_*` |
+| P3 | Head v4 retrained on polyp sequences with instrument occluders, gate calibrated on held-out videos | `runs/polyp_head_*` |
+| P4 | LoRA on the last DINOv3 blocks with a Gram anchor, trained on public polyp stills only | `runs/polyp_lora_*` |
+| P5 | Write-up + overlay videos | README section, `docs/article_polyp.md` |
+
+Metrics specific to this study: box IoU on LDPolypVideo (J on filled boxes), mask J on PolypGen; re-acquisition delay on *real* episodes; false re-detection rate after the polyp leaves (does the tracker latch onto a fold).
+
+Confidentiality: public data only, nothing from the NDA'd work, no client names.
