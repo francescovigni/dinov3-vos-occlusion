@@ -120,10 +120,40 @@ class LDPolypVideo:
 
 
 class PolypGenSequences:
-    """PolypGen positive video sequences (Ali et al., Sci Data 2023) with per-frame masks."""
+    """PolypGen positive video sequences (Ali et al., Sci Data 2023):
+    ``<root>/positive_cropped/seqN/{images,masks}/<frame>.jpg`` with binary JPEG masks.
+
+    Small (23 sequences), so the split is by sequence id: ``val`` = every third sequence
+    (seq3, seq6, ...), ``train`` = the rest, ``all`` = everything.
+    """
 
     name = "polypgen"
     gt_kind = "mask"
 
     def __init__(self, root: str | Path, split: str):
-        raise NotImplementedError("adapter written once the archive layout is on disk")
+        base = Path(root)
+        base = base / "positive_cropped" if (base / "positive_cropped").is_dir() else base
+        if not base.is_dir():
+            raise FileNotFoundError(f"{base} missing; run scripts/download_polyp_drive.sh")
+        self.root = base
+        all_seqs = sorted(
+            (p.name for p in base.glob("seq*") if p.is_dir()), key=lambda n: int(n[3:])
+        )
+        val = [s for s in all_seqs if int(s[3:]) % 3 == 0]
+        self.sequences = {
+            "val": val,
+            "test": val,
+            "train": [s for s in all_seqs if s not in val],
+            "all": all_seqs,
+        }[split.lower()]
+
+    def frames(self, seq: str) -> list[Path]:
+        return sorted((self.root / seq / "images").glob("*.jpg"), key=lambda p: int(p.stem))
+
+    def load(self, seq: str) -> tuple[list[np.ndarray], list[np.ndarray]]:
+        images, masks = [], []
+        for f in self.frames(seq):
+            images.append(read_image(f))
+            m = np.asarray(Image.open(self.root / seq / "masks" / f.name).convert("L"))
+            masks.append((m > 127).astype(np.uint8))
+        return images, masks

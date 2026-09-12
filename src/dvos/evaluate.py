@@ -15,6 +15,7 @@ import torch.nn.functional as F
 
 from dvos.backbone import pick_device
 from dvos.config import load_config
+from dvos.features import has_feats, load_feats
 from dvos.metrics import (
     hidden_frames,
     leak_ratio,
@@ -100,7 +101,7 @@ def main() -> None:
     cfg = load_config(args.config)
     device = pick_device(cfg.backbone.device)
     root = Path(cfg.data.features_root) / args.split
-    dirs = sorted(d for d in root.glob(f"*/{args.variant}") if (d / "feats.npy").exists())
+    dirs = sorted(d for d in root.glob(f"*/{args.variant}") if has_feats(d))
     if args.seqs:
         dirs = [d for d in dirs if d.parent.name in args.seqs]
     if not dirs:
@@ -118,7 +119,7 @@ def main() -> None:
     rows = []
     for d in dirs:
         meta = json.loads((d / "meta.json").read_text())
-        feats = torch.from_numpy(np.load(d / "feats.npy").astype(np.float32)).to(device)
+        feats = torch.from_numpy(load_feats(d)).to(device)
         masks = np.load(d / "masks.npz")
         visible, occluder = masks["visible"].astype(bool), masks["occluder"].astype(bool)
         size = tuple(meta["image_size"])

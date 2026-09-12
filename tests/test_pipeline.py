@@ -29,10 +29,12 @@ def test_01_extract(pipeline, monkeypatch):
     for split in ("val", "train"):
         run(monkeypatch, extract, ["--config", str(pipeline["cfg"]), "--split", split])
     d = pipeline["root"] / "features" / "val" / "seqc" / "occ0"
-    feats = np.load(d / "feats.npy")
+    from dvos.features import load_feats
+
+    feats = load_feats(d)
     meta = json.loads((d / "meta.json").read_text())
     masks = np.load(d / "masks.npz")
-    assert feats.shape == (8, 16, 6, 8) and feats.dtype == np.float16
+    assert feats.shape == (8, 16, 6, 8) and (d / "feats_u8.npz").exists()
     assert meta["target_id"] == 1 and meta["episode"][0] >= 2
     assert masks["visible"].shape == (8, 96, 128)
     s, e = meta["episode"]
@@ -63,7 +65,9 @@ def test_02b_stride_and_variant_override(pipeline, monkeypatch, tmp_path):
     assert sorted(p.name for p in d.iterdir()) == ["clean"]
     meta = json.loads((d / "clean" / "meta.json").read_text())
     assert meta["stride"] == 2 and meta["n_frames"] == 4
-    assert np.load(d / "clean" / "feats.npy").shape[0] == 4
+    from dvos.features import n_frames
+
+    assert n_frames(d / "clean") == 4
 
 
 def test_03_baseline(pipeline, monkeypatch):

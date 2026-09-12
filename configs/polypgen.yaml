@@ -1,9 +1,9 @@
-# Colonoscopy study: polyp tracking under occlusion. Same head, same metrics as the DAVIS control.
+# PolypGen positive sequences: mask-level evaluation set for the head trained on LDPolypVideo.
 data:
-  dataset: ldpolypvideo
-  root: data/polyp/ldpolypvideo
-  features_root: data/features_polyp
-  size: [480, 560]            # LDPolypVideo annotated frames are 560x480; multiples of 16
+  dataset: polypgen
+  root: data/polyp/polypgen-sequences
+  features_root: data/features_polypgen
+  size: [512, 640]            # PolypGen sequences vary (720x576 .. 1440x1064); 5:4 is the common aspect
   variants: [clean, occ0]
   quantize: true              # uint8 feature cache, halves the disk footprint
   # DAVIS-only keys kept for the shared code paths

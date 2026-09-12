@@ -20,12 +20,13 @@ from tqdm import tqdm
 
 from dvos.backbone import pick_device
 from dvos.config import load_config
+from dvos.features import has_feats, load_feats, n_channels, n_frames
 from dvos.metrics import hidden_frames, jaccard
 from dvos.model import MemoryBank, MemoryVOS, bce_dice, build_model, to_feature_res, track
 
 
 def list_clips(features_root: Path, split: str, variants: list[str] | None = None) -> list[Path]:
-    dirs = sorted(p.parent for p in (features_root / split).glob("*/*/feats.npy"))
+    dirs = sorted(d for d in (features_root / split).glob("*/*") if d.is_dir() and has_feats(d))
     if variants:
         dirs = [d for d in dirs if d.name in variants]
     return dirs
@@ -47,11 +48,11 @@ def sample_indices(n: int, length: int, gap_max: int, rng: random.Random) -> lis
 
 def load_clip(d: Path, idx: list[int], device: torch.device, hidden_thr: float = 0.9):
     """Features (T,C,h,w), visible masks (T,1,4h,4w) and hidden flags (T,) for the frames ``idx``."""
-    feats = np.load(d / "feats.npy", mmap_mode="r")[idx]
+    feats = load_feats(d, idx)
     vis = np.load(d / "masks.npz")["visible"][idx]
     fraction = np.array(json.loads((d / "meta.json").read_text())["fraction"])[idx]
     hidden = torch.from_numpy(hidden_frames(vis, fraction, hidden_thr)).to(device)
-    f = torch.from_numpy(np.array(feats, dtype=np.float32, copy=True)).to(device)
+    f = torch.from_numpy(feats).to(device)
     m = torch.from_numpy(np.array(vis, dtype=np.float32, copy=True)).unsqueeze(1)  # (T,1,H,W)
     h, w = f.shape[2:]
     # area pooling to a non-divisible size is unsupported on MPS: resize on CPU, then move
@@ -65,7 +66,7 @@ def validate(model: MemoryVOS, dirs: list[Path], mc, device: torch.device) -> fl
     model.eval()
     js = []
     for d in dirs:
-        feats = torch.from_numpy(np.load(d / "feats.npy").astype(np.float32)).to(device)
+        feats = torch.from_numpy(load_feats(d)).to(device)
         gt = np.load(d / "masks.npz")["visible"].astype(bool)
         h, w = feats.shape[2:]
         first = torch.from_numpy(gt[0].astype(np.float32))[None, None]
@@ -131,7 +132,7 @@ def main() -> None:
     if not clips:
         raise SystemExit("holdout leaves no training sequences")
 
-    c_in = int(np.load(clips[0] / "feats.npy", mmap_mode="r").shape[1])
+    c_in = n_channels(clips[0])
     model = build_model(c_in, mc).to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=tr.lr, weight_decay=1e-4)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=epochs * clips_per_epoch)
@@ -150,7 +151,7 @@ def main() -> None:
             model.train()
             for _ in tqdm(range(clips_per_epoch), desc=f"epoch {epoch}", leave=False):
                 d = rng.choice(clips)
-                n = np.load(d / "feats.npy", mmap_mode="r").shape[0]
+                n = n_frames(d)
                 idx = sample_indices(n, tr.clip_len, tr.gap_max, rng)
                 feats, masks, hidden = load_clip(d, idx, device, cfg.occlusion.hidden_fraction)
                 lm, lv = train_clip(model, feats, masks, hidden, mc, tf, rng)

@@ -17,6 +17,7 @@ import torch.nn.functional as F
 
 from dvos.backbone import pick_device
 from dvos.config import feature_dir, load_config
+from dvos.features import has_feats, load_feats, n_frames
 from dvos.metrics import hidden_frames
 from dvos.model import build_model, track
 
@@ -26,7 +27,7 @@ def collect_scores(
 ) -> tuple[np.ndarray, np.ndarray]:
     scores, hidden = [], []
     for d in dirs:
-        feats = torch.from_numpy(np.load(d / "feats.npy").astype(np.float32)).to(device)
+        feats = torch.from_numpy(load_feats(d)).to(device)
         gt = np.load(d / "masks.npz")["visible"].astype(bool)
         fraction = json.loads((d / "meta.json").read_text()).get("fraction")
         hid = hidden_frames(gt, fraction, hidden_thr)
@@ -62,7 +63,7 @@ def gate_by_j(scores_per_seq, dirs: list[Path], bcfg, device, grid) -> tuple[flo
 
     cache = []
     for d in dirs:
-        feats = torch.from_numpy(np.load(d / "feats.npy").astype(np.float32)).to(device)
+        feats = torch.from_numpy(load_feats(d)).to(device)
         gt = np.load(d / "masks.npz")["visible"].astype(bool)
         cache.append((feats, gt))
     curve = {}
@@ -107,7 +108,7 @@ def main() -> None:
     run = Path(args.run)
     holdout = json.loads((run / "split.json").read_text())["holdout"]
     dirs = [feature_dir(cfg, args.split, s, args.variant) for s in holdout]
-    dirs = [d for d in dirs if (d / "feats.npy").exists()]
+    dirs = [d for d in dirs if has_feats(d)]
     if not dirs:
         raise SystemExit("no held-out sequences with the requested variant in the feature cache")
     device = pick_device(cfg.backbone.device)
@@ -129,7 +130,7 @@ def main() -> None:
     if args.objective == "j":
         per_seq, k = [], 0
         for d in dirs:
-            n = np.load(d / "feats.npy", mmap_mode="r").shape[0] - 1
+            n = n_frames(d) - 1
             per_seq.append([1.0] + list(scores[k : k + n]))
             k += n
         grid = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]

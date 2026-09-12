@@ -2,7 +2,13 @@ import numpy as np
 from PIL import Image
 
 from dvos.occlusion import OccluderBank
-from dvos.polyp import LDPolypVideo, associate_target, image_mask_pairs, read_boxes
+from dvos.polyp import (
+    LDPolypVideo,
+    PolypGenSequences,
+    associate_target,
+    image_mask_pairs,
+    read_boxes,
+)
 
 
 def test_image_mask_pairs_and_bank(tmp_path):
@@ -51,3 +57,24 @@ def test_ldpolypvideo_adapter(tmp_path):
     assert ds.sequences == ["7"] and ds.gt_kind == "box"
     images, masks = ds.load("7")
     assert len(images) == 4 and masks[0][10:30, 10:30].min() == 1 and masks[2].max() == 0
+
+
+def test_polypgen_adapter_split_and_masks(tmp_path):
+    base = tmp_path / "positive_cropped"
+    for n in (1, 2, 3, 6):
+        (base / f"seq{n}" / "images").mkdir(parents=True)
+        (base / f"seq{n}" / "masks").mkdir(parents=True)
+        for t in (10, 2, 33):  # unsorted names on purpose
+            Image.fromarray(np.zeros((32, 40, 3), np.uint8)).save(
+                base / f"seq{n}" / "images" / f"{t}.jpg"
+            )
+            m = np.zeros((32, 40), np.uint8)
+            if t != 2:
+                m[5:15, 5:20] = 255
+            Image.fromarray(m).save(base / f"seq{n}" / "masks" / f"{t}.jpg")
+    assert PolypGenSequences(tmp_path, "val").sequences == ["seq3", "seq6"]
+    ds = PolypGenSequences(tmp_path, "train")
+    assert ds.sequences == ["seq1", "seq2"] and ds.gt_kind == "mask"
+    images, masks = ds.load("seq1")
+    assert [p.stem for p in ds.frames("seq1")] == ["2", "10", "33"]
+    assert masks[0].max() == 0 and masks[1][5:15, 5:20].min() == 1 and masks[1].dtype == np.uint8

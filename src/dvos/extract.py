@@ -21,6 +21,7 @@ from dvos.backbone import extract_features, load_dinov3, preprocess
 from dvos.config import feature_dir, load_config
 from dvos.datasets import annotation_gaps, make_dataset
 from dvos.davis import Davis
+from dvos.features import has_feats, save_feats
 from dvos.occlusion import OccluderBank, occlude_sequence
 
 
@@ -84,7 +85,7 @@ def main() -> None:
         real = annotation_gaps([bool((m == target).any()) for m in msks])
         for variant in variants:
             out = feature_dir(cfg, args.split, seq, variant)
-            if (out / "feats.npy").exists():
+            if has_feats(out):
                 continue
             if variant == "clean":
                 images, visible = imgs, full
@@ -111,7 +112,7 @@ def main() -> None:
                 feats.append(extract_features(model, preprocess(img, size)).cpu().half().numpy()[0])
             feats = np.stack(feats)
             out.mkdir(parents=True, exist_ok=True)
-            np.save(out / "feats.npy", feats)
+            save_feats(out, feats, bool(getattr(cfg.data, "quantize", False)))
             np.savez_compressed(
                 out / "masks.npz",
                 visible=np.stack(visible).astype(np.uint8),

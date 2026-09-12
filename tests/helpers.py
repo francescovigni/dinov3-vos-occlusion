@@ -53,7 +53,7 @@ class FakeBackbone(nn.Module):
 def write_config(path: Path, davis_root: Path, features_root: Path) -> Path:
     path.write_text(
         f"""
-data: {{davis_root: {davis_root}, features_root: {features_root}, year: "2017", resolution: 480p, size: [96, 128], variants: [clean, occ0]}}
+data: {{davis_root: {davis_root}, features_root: {features_root}, year: "2017", resolution: 480p, size: [96, 128], variants: [clean, occ0], quantize: true}}
 backbone: {{name: dinov3_vits16, repo: null, weights: null, device: cpu}}
 occlusion: {{min_len: 2, max_len: 3, start_min: 2, scale: [1.2, 1.5], jitter: 0.05, hidden_fraction: 0.9}}
 baseline: {{n_last: 3, topk: 5, radius: 4, temperature: 0.07}}
