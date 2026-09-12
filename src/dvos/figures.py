@@ -15,7 +15,7 @@ import cv2
 import numpy as np
 
 from dvos.config import feature_dir, load_config
-from dvos.davis import Davis
+from dvos.datasets import make_dataset
 from dvos.extract import build_bank, seq_seed
 from dvos.occlusion import occlude_sequence
 
@@ -43,8 +43,7 @@ def pick_frames(n: int, episode: list[int] | None) -> list[int]:
 
 def sequence_images(cfg, split: str, seq: str, variant: str, bank, target: int) -> list[np.ndarray]:
     """Re-create the exact frames the features were extracted from (same seed, same bank)."""
-    davis = Davis(cfg.data.davis_root, split, cfg.data.year, cfg.data.resolution)
-    imgs, msks = davis.load(seq)
+    imgs, msks = make_dataset(cfg, split).load(seq)
     if variant == "clean":
         return imgs
     rng = np.random.default_rng(seq_seed(seq, int(variant[3:])))

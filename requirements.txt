@@ -5,3 +5,4 @@ torch>=2.2
 torchvision>=0.17
 pyyaml>=6.0
 tqdm>=4.66
+gdown>=5.2

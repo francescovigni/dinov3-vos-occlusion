@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import zlib
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -18,19 +19,28 @@ from tqdm import tqdm
 
 from dvos.backbone import extract_features, load_dinov3, preprocess
 from dvos.config import feature_dir, load_config
-from dvos.davis import Davis, real_occlusion_episodes
+from dvos.datasets import annotation_gaps, make_dataset
+from dvos.davis import Davis
 from dvos.occlusion import OccluderBank, occlude_sequence
 
 
 def build_bank(cfg) -> OccluderBank:
-    train = Davis(cfg.data.davis_root, "train", cfg.data.year, cfg.data.resolution)
+    """Occluders cut from the first frames of the *training* split, or from a directory of
+    image/mask pairs when ``cfg.occlusion.bank`` names one (e.g. Kvasir-Instrument)."""
+    fill = getattr(cfg.occlusion, "fill_hull", True)
+    bank_dir = getattr(cfg.occlusion, "bank", None)
+    if bank_dir:
+        from dvos.polyp import image_mask_pairs
+
+        images, masks = image_mask_pairs(Path(bank_dir))
+        return OccluderBank.from_masks(images, masks, fill_hull=fill)
+    train = make_dataset(cfg, "train")
     images, masks = [], []
     for seq in train.sequences:
-        images.append(Davis.read_image(train.frames(seq)[0]))
-        masks.append(Davis.read_mask(train.masks(seq)[0]))
-    return OccluderBank.from_masks(
-        images, masks, fill_hull=getattr(cfg.occlusion, "fill_hull", True)
-    )
+        imgs, msks = train.load(seq)
+        images.append(imgs[0])
+        masks.append(msks[0])
+    return OccluderBank.from_masks(images, masks, fill_hull=fill)
 
 
 def seq_seed(seq: str, variant_seed: int) -> int:
@@ -52,16 +62,16 @@ def main() -> None:
     ap.add_argument("--variants", nargs="*", default=None, help="override data.variants")
     args = ap.parse_args()
     cfg = load_config(args.config)
-    davis = Davis(cfg.data.davis_root, args.split, cfg.data.year, cfg.data.resolution)
+    dataset = make_dataset(cfg, args.split)
     model = load_dinov3(
         cfg.backbone.name, cfg.backbone.repo, cfg.backbone.weights, cfg.backbone.device
     )
     size = tuple(cfg.data.size)
     variants = args.variants or list(cfg.data.variants)
     bank = build_bank(cfg) if any(v.startswith("occ") for v in variants) else None
-    seqs = args.seqs or davis.sequences
+    seqs = args.seqs or dataset.sequences
     for seq in tqdm(seqs, desc=f"extract {args.split}"):
-        imgs, msks = davis.load(seq)
+        imgs, msks = dataset.load(seq)
         if args.stride > 1:
             imgs, msks = imgs[:: args.stride], msks[:: args.stride]
         if args.max_frames:
@@ -71,7 +81,7 @@ def main() -> None:
         if target is None:
             continue
         full = [(m == target) for m in msks]
-        real = real_occlusion_episodes(msks, target)
+        real = annotation_gaps([bool((m == target).any()) for m in msks])
         for variant in variants:
             out = feature_dir(cfg, args.split, seq, variant)
             if (out / "feats.npy").exists():
@@ -120,6 +130,8 @@ def main() -> None:
                 image_size=list(imgs[0].shape[:2]),
                 feature_size=list(feats.shape[2:]),
                 backbone=cfg.backbone.name,
+                dataset=dataset.name,
+                gt_kind=dataset.gt_kind,
                 stride=args.stride,
                 input_size=list(size),
                 n_frames=len(imgs),
