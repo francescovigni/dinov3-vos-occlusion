@@ -46,26 +46,17 @@ def status_bar(
 ) -> np.ndarray:
     bar = np.zeros((BAR_H, width, 3), np.uint8)
     hidden = gate is not None and vis < gate
-    cv2.putText(
-        bar,
-        f"{name}  {seq}  t={t:>3}/{n - 1}  J={j:.2f}",
-        (6, 22),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.55,
-        WHITE,
-        1,
-        cv2.LINE_AA,
-    )
-    # visibility gauge
-    x0, x1, y0, y1 = width - 190, width - 70, 9, 25
+    font, fs = cv2.FONT_HERSHEY_SIMPLEX, 0.5
+    title = f"{name}  {seq}  t={t:>3}/{n - 1}  J={j:.2f}"
+    cv2.putText(bar, title, (6, 22), font, fs, WHITE, 1, cv2.LINE_AA)
+    tw = cv2.getTextSize(title, font, fs, 1)[0][0]
+    # visibility gauge + verdict, right-aligned; gauge width shrinks on narrow frames
+    gw = 120 if width >= 900 else 70
+    x1 = width - 70
+    x0, y0, y1 = x1 - gw, 9, 25
     cv2.rectangle(bar, (x0, y0), (x1, y1), GREY, 1)
-    cv2.rectangle(
-        bar,
-        (x0 + 1, y0 + 1),
-        (x0 + 1 + int((x1 - x0 - 2) * float(np.clip(vis, 0, 1))), y1 - 1),
-        RED if hidden else GREEN,
-        -1,
-    )
+    fill = int((x1 - x0 - 2) * float(np.clip(vis, 0, 1)))
+    cv2.rectangle(bar, (x0 + 1, y0 + 1), (x0 + 1 + fill, y1 - 1), RED if hidden else GREEN, -1)
     if gate is not None:
         gx = x0 + 1 + int((x1 - x0 - 2) * gate)
         cv2.line(bar, (gx, y0 - 3), (gx, y1 + 3), WHITE, 1)
@@ -73,23 +64,18 @@ def status_bar(
         bar,
         "HIDDEN" if hidden else "VISIBLE",
         (x1 + 6, 22),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.5,
+        font,
+        fs,
         RED if hidden else GREEN,
         1,
         cv2.LINE_AA,
     )
     if in_episode:
-        cv2.putText(
-            bar,
-            "OCCLUDER PRESENT",
-            (width // 2 - 80, 22),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.5,
-            AMBER,
-            1,
-            cv2.LINE_AA,
-        )
+        tag = "OCCLUDER PRESENT" if x0 - (6 + tw + 12) > 150 else "OCCL."
+        tag_w = cv2.getTextSize(tag, font, fs, 1)[0][0]
+        x = min(max(6 + tw + 12, (width - tag_w) // 2), x0 - tag_w - 8)
+        if x > 6 + tw:
+            cv2.putText(bar, tag, (x, 22), font, fs, AMBER, 1, cv2.LINE_AA)
     return bar
 
 
