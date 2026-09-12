@@ -202,7 +202,7 @@ Same head, same metrics, same pipeline (`scripts/run_polyp.sh`), on public colon
 - Training saw 392 held-out frames with 31 hidden ones; the calibrated gate (balanced accuracy 0.58) barely matters, and gated vs ungated writes are within noise here. The visibility head still transfers: on PolypGen the leak onto the instrument drops from 0.52 to 0.01.
 - One training run, one seed, boxes with no identities followed by a heuristic. The numbers say "encoder", not "method": the next experiment is LoRA on the last DINOv3 blocks with a Gram anchor on public polyp stills (Kvasir-SEG is on disk), then this table again.
 
-*Videos:* `docs/videos/polyp_133_occ0.gif` (best occluded clip) and `docs/videos/polyp_144_clean.gif` (best clean clip), baseline left, head right.
+*Videos:* `docs/videos/polyp_133_occ0.gif` (best occluded clip), `docs/videos/polyp_144_clean.gif` (best clean clip) and `docs/videos/polyp_147_long.gif` (a full 465-frame clip with five real disappearance episodes, the longest 108 frames; here the zero-shot baseline scores 0.585 J&F against the head's 0.396, cached uncapped via `configs/polyp_long.yaml`). Baseline left, head right.
 
 ![polyp 133, occ0](docs/videos/polyp_133_occ0.gif)
 <!-- polyp-results:end -->
