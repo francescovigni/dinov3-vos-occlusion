@@ -15,7 +15,14 @@ import torch.nn.functional as F
 
 from dvos.backbone import pick_device
 from dvos.config import load_config
-from dvos.metrics import hidden_frames, leak_ratio, recovery_delay, sequence_jf, visibility_auc
+from dvos.metrics import (
+    hidden_frames,
+    leak_ratio,
+    mask_to_box,
+    recovery_delay,
+    sequence_jf,
+    visibility_auc,
+)
 from dvos.model import MemoryVOS, build_model, track
 from dvos.propagate import propagate
 
@@ -137,6 +144,9 @@ def main() -> None:
                 pred=np.stack(preds).astype(np.uint8),
                 vis=np.array(vis),
             )
+        if meta.get("gt_kind") == "box":
+            # box-level ground truth: score the predicted mask's bounding box (box IoU)
+            preds = [mask_to_box(p) for p in preds]
         jf = sequence_jf(preds, list(visible))
         episodes = [tuple(meta["episode"])] if meta["episode"] else []
         episodes += [tuple(e) for e in meta["real_episodes"]]

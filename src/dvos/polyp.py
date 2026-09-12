@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from dvos.datasets import read_image
+from dvos.datasets import box_mask, read_image
 
 
 def image_mask_pairs(
@@ -37,14 +37,86 @@ def image_mask_pairs(
     return images, masks
 
 
+def read_boxes(path: Path) -> list[tuple[int, int, int, int]]:
+    """LDPolypVideo annotation: first token = number of boxes, then ``x0 y0 x1 y1`` per box."""
+    tok = path.read_text().split()
+    n = int(tok[0]) if tok else 0
+    vals = [int(float(t)) for t in tok[1 : 1 + 4 * n]]
+    return [tuple(vals[i : i + 4]) for i in range(0, 4 * n, 4)]
+
+
+def _iou(a, b) -> float:
+    ix0, iy0, ix1, iy1 = max(a[0], b[0]), max(a[1], b[1]), min(a[2], b[2]), min(a[3], b[3])
+    inter = max(0, ix1 - ix0) * max(0, iy1 - iy0)
+    area = lambda r: max(0, r[2] - r[0]) * max(0, r[3] - r[1])  # noqa: E731
+    union = area(a) + area(b) - inter
+    return inter / union if union > 0 else 0.0
+
+
+def associate_target(boxes_per_frame: list[list[tuple[int, int, int, int]]]) -> list[tuple | None]:
+    """One target track through frames of unlabelled boxes.
+
+    Frame 0: the largest box. Later frames: the box with the best IoU to the last known
+    target box, falling back to the nearest centre when nothing overlaps (after a gap).
+    Frames without boxes give ``None``. Boxes carry no identity in LDPolypVideo, so this
+    is a heuristic; most videos contain a single polyp.
+    """
+    track: list[tuple | None] = []
+    last = None
+    for boxes in boxes_per_frame:
+        if not boxes:
+            track.append(None)
+            continue
+        if last is None:
+            best = max(boxes, key=lambda b: (b[2] - b[0]) * (b[3] - b[1]))
+        else:
+            best = max(boxes, key=lambda b: _iou(b, last))
+            if _iou(best, last) == 0.0:
+                cx, cy = (last[0] + last[2]) / 2, (last[1] + last[3]) / 2
+                best = min(
+                    boxes,
+                    key=lambda b: ((b[0] + b[2]) / 2 - cx) ** 2 + ((b[1] + b[3]) / 2 - cy) ** 2,
+                )
+        track.append(tuple(best))
+        last = tuple(best)
+    return track
+
+
 class LDPolypVideo:
-    """LDPolypVideo (Ma et al., MICCAI 2021): frames per video with one box file per frame."""
+    """LDPolypVideo (Ma et al., MICCAI 2021): ``<root>/<Split>/Images/<video>/NNNN.jpg`` with
+    ``Annotations/<video>/NNNN.txt``. Split names are ``TrainValid`` and ``Test``; ``train``
+    and ``val`` map onto them. Target = largest box on frame 0, followed by IoU association."""
 
     name = "ldpolypvideo"
     gt_kind = "box"
+    SPLITS = {"train": "TrainValid", "trainvalid": "TrainValid", "val": "Test", "test": "Test"}
 
     def __init__(self, root: str | Path, split: str):
-        raise NotImplementedError("adapter written once the archive layout is on disk")
+        self.root = Path(root) / self.SPLITS.get(split.lower(), split)
+        if not (self.root / "Images").is_dir():
+            raise FileNotFoundError(
+                f"{self.root}/Images missing; run scripts/download_polyp_drive.sh"
+            )
+        self.sequences = sorted(
+            (p.name for p in (self.root / "Images").iterdir() if p.is_dir()), key=int
+        )
+
+    def frames(self, seq: str) -> list[Path]:
+        return sorted((self.root / "Images" / seq).glob("*.jpg"))
+
+    def boxes(self, seq: str) -> list[list[tuple[int, int, int, int]]]:
+        return [
+            read_boxes(self.root / "Annotations" / seq / (f.stem + ".txt"))
+            for f in self.frames(seq)
+        ]
+
+    def load(self, seq: str) -> tuple[list[np.ndarray], list[np.ndarray]]:
+        frames = self.frames(seq)
+        images = [read_image(f) for f in frames]
+        track = associate_target(self.boxes(seq))
+        shape = images[0].shape[:2]
+        masks = [box_mask(shape, [b] if b is not None else []) for b in track]
+        return images, masks
 
 
 class PolypGenSequences:

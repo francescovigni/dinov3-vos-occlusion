@@ -109,3 +109,14 @@ def hidden_frames(visible: np.ndarray, fraction, thr: float = 0.9) -> np.ndarray
     empty = ~visible.reshape(len(visible), -1).any(axis=1)
     frac = np.asarray(fraction, dtype=float) if fraction is not None else np.zeros(len(visible))
     return empty | (frac >= thr)
+
+
+def mask_to_box(mask: np.ndarray) -> np.ndarray:
+    """Filled bounding box of a binary mask (empty stays empty). For scoring against box GT."""
+    m = mask.astype(bool)
+    if not m.any():
+        return np.zeros_like(m)
+    ys, xs = np.where(m)
+    out = np.zeros_like(m)
+    out[ys.min() : ys.max() + 1, xs.min() : xs.max() + 1] = True
+    return out

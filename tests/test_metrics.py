@@ -6,6 +6,7 @@ from dvos.metrics import (
     hidden_frames,
     jaccard,
     leak_ratio,
+    mask_to_box,
     recovery_delay,
     sequence_jf,
     visibility_auc,
@@ -84,3 +85,12 @@ def test_hidden_frames_uses_fraction_or_empty_mask():
     frac = [0.0, 0.95, 0.5, 0.0]
     assert hidden_frames(vis, frac, thr=0.9).tolist() == [False, True, False, True]
     assert hidden_frames(vis, None).tolist() == [False, False, False, True]
+
+
+def test_mask_to_box():
+    m = np.zeros((10, 10), bool)
+    m[2, 3] = True
+    m[6, 8] = True
+    b = mask_to_box(m)
+    assert b[2:7, 3:9].all() and b.sum() == 5 * 6
+    assert mask_to_box(np.zeros((4, 4), bool)).sum() == 0

@@ -57,7 +57,7 @@ Same head, same metrics, same pipeline; the DAVIS numbers become the control. Wh
 | # | What | Done when |
 |---|---|---|
 | P0 | Data on disk with licences noted: LDPolypVideo (boxes, 160 videos), PolypGen positive sequences (masks), Kvasir-Instrument (occluder bank), Kvasir-SEG (stills for adaptation). SUN-SEG requested separately | `data/polyp/` populated, `scripts/download_polyp*.sh` |
-| P1 | Adapters + real-episode statistics: how many polyps disappear and come back, for how long | table in this file |
+| P1 ✅ | Adapters + real-episode statistics: how many polyps disappear and come back, for how long | below |
 | P2 | Feature cache (576×768, ViT-S/16) + zero-shot propagation on both datasets | `runs/polyp_baseline_*` |
 | P3 | Head v4 retrained on polyp sequences with instrument occluders, gate calibrated on held-out videos | `runs/polyp_head_*` |
 | P4 | LoRA on the last DINOv3 blocks with a Gram anchor, trained on public polyp stills only | `runs/polyp_lora_*` |
@@ -66,3 +66,11 @@ Same head, same metrics, same pipeline; the DAVIS numbers become the control. Wh
 Metrics specific to this study: box IoU on LDPolypVideo (J on filled boxes), mask J on PolypGen; re-acquisition delay on *real* episodes; false re-detection rate after the polyp leaves (does the tracker latch onto a fold).
 
 Confidentiality: public data only, nothing from the NDA'd work, no client names.
+
+### P1 — LDPolypVideo TrainValid, real disappearance episodes (12 Sep 2026)
+
+100 videos, 24,789 annotated frames at 560×480, median 190 frames per video (27–1010). 15.5 % of frames carry no box; 4.3 % carry more than one (boxes have no identity, so the target track is: largest box on frame 0, then IoU association, nearest centre after a gap).
+
+**90 disappearance episodes in 43 videos** (a run of box-less frames between two boxed frames): median 14 frames, p90 51, max 135; 24 episodes last 30+ frames. Occlusion by folds/instruments and leaving the field of view are indistinguishable in the annotation and are reported as one class. The synthetic instrument occluders from Kvasir-Instrument are kept as a second, controlled variant.
+
+Disk budget: features at 480×560 are 0.8 MB/frame; both splits are cached at stride 2 with a per-video cap, `clean` + `occ0` only. The DAVIS caches were deleted to make room (regenerable in ~10 min).

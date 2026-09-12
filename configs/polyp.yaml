@@ -3,7 +3,7 @@ data:
   dataset: ldpolypvideo
   root: data/polyp/ldpolypvideo
   features_root: data/features_polyp
-  size: [576, 768]            # LDPolypVideo native 768x576; multiples of 16
+  size: [480, 560]            # LDPolypVideo annotated frames are 560x480; multiples of 16
   variants: [clean, occ0]
   # DAVIS-only keys kept for the shared code paths
   davis_root: data/DAVIS
