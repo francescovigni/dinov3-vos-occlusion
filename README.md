@@ -57,6 +57,7 @@ src/dvos/propagate.py    zero-shot k-NN label propagation baseline
 src/dvos/model.py        memory bank, key/value encoders, readout, decoder, visibility head, losses
 src/dvos/metrics.py      J, F, recovery delay, leak ratio
 src/dvos/extract.py      CLI: cache features + occlusion variants to disk
+src/dvos/video.py        CLI: overlay MP4/GIF per sequence, optional side-by-side compare
 src/dvos/train.py        CLI: train the head on cached features
 src/dvos/evaluate.py     CLI: baseline or checkpoint → metrics JSON + table
 tests/                   unit tests on synthetic tensors, no weights needed
@@ -139,6 +140,20 @@ Everything below is on DAVIS 2017 val, single target per sequence, frames 1..T�
 *Zero-shot baseline (`docs/figures/qualitative_baseline_occ0.png`)* — inside the episode the propagated mask fills the occluder, then snaps back.
 
 ![baseline, occ0](docs/figures/qualitative_baseline_occ0.png)
+
+## Videos
+
+Side by side, zero-shot baseline (left) and head v4 (right), occluded variant `occ0`. Red fill = prediction, green = ground-truth visible mask, yellow = occluder. The gauge is the visibility score against the run's gate; the verdict flips to HIDDEN when the head declares the object gone.
+
+`dog` — the intended behaviour: while the occluder is present the baseline paints it (J = 0, still "visible"), the head returns an empty mask (J = 1, "hidden"); both re-acquire the dog three frames later.
+
+![dog, occ0](docs/videos/dog_occ0.gif)
+
+`shooting` — median case. `scooter-black` — worst case, the instance-confusion failure (every scooter in the row gets painted).
+
+![shooting, occ0](docs/videos/shooting_occ0.gif)
+
+Regenerate any sequence with `python -m dvos.video --run runs/head_occ0 --compare runs/baseline_occ0 --seq <name> --out docs/videos/<name>.mp4 --gif docs/videos/<name>.gif`.
 
 ## What this does NOT show
 

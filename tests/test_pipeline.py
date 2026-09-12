@@ -199,6 +199,35 @@ def test_05_figure(pipeline, monkeypatch):
     assert png.exists() and png.stat().st_size > 2000
 
 
+def test_05b_video(pipeline, monkeypatch):
+    from dvos import video
+
+    mp4 = pipeline["root"] / "runs" / "seqc.mp4"
+    gif = pipeline["root"] / "runs" / "seqc.gif"
+    run(
+        monkeypatch,
+        video,
+        [
+            "--config",
+            str(pipeline["cfg"]),
+            "--run",
+            str(pipeline["root"] / "runs" / "head_occ0"),
+            "--compare",
+            str(pipeline["root"] / "runs" / "baseline"),
+            "--seq",
+            "seqc",
+            "--out",
+            str(mp4),
+            "--gif",
+            str(gif),
+            "--gif-width",
+            "160",
+        ],
+    )
+    assert mp4.exists() and mp4.stat().st_size > 1000
+    assert gif.exists() and gif.stat().st_size > 500
+
+
 def test_06_train_refuses_without_features(pipeline, monkeypatch, tmp_path):
     cfg = write_config(tmp_path / "cfg.yaml", pipeline["root"] / "DAVIS", tmp_path / "nofeatures")
     with pytest.raises(SystemExit):
