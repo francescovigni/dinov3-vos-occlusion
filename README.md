@@ -155,6 +155,22 @@ Side by side, zero-shot baseline (left) and head v4 (right), occluded variant `o
 
 Regenerate any sequence with `python -m dvos.video --run runs/head_occ0 --compare runs/baseline_occ0 --seq <name> --out docs/videos/<name>.mp4 --gif docs/videos/<name>.gif`.
 
+## Study 2 — polyps in colonoscopy
+
+Same head, same metrics, same pipeline (`scripts/run_polyp.sh`), on public colonoscopy data where the object really does disappear and come back: behind folds, behind instruments, out of the field of view.
+
+| dataset | role | ground truth | size used | licence |
+|---|---|---|---|---|
+| [LDPolypVideo](https://github.com/dashishi/LDPolypVideo-Benchmark) (Ma et al., MICCAI 2021) | train (TrainValid, 100 videos) and test (60 videos) | per-frame boxes, no identities | 560×480, stride 2, first 50 / 80 cached frames per clip | research use, see repo |
+| [PolypGen](https://github.com/DebeshJha/PolypGen) positive sequences (Ali et al., Sci Data 2023) | extra mask-level test set, 7 of 23 sequences | per-frame masks | 512×640 | open access (Sci Data) |
+| [Kvasir-Instrument](https://datasets.simula.no/kvasir-instrument/) (Jha et al., MMM 2021) | occluder bank for the synthetic variant | instrument masks, 590 images | as is | CC BY 4.0 |
+
+**Protocol differences from study 1.** A clip starts at its first annotated frame (54 of 60 test clips begin before the polyp is in view). The target is the largest box on that frame, followed through the unlabelled boxes by IoU association and nearest centre after a gap; on box datasets the predicted mask is scored by its bounding box. **Real episodes** are runs of box-less frames between boxed frames: 69 in the 60 test clips (median 11 frames, p90 35), 90 in the 100 training clips (median 14, p90 51, 24 of them 30+ frames). Occlusion and leaving the field of view are one class in the annotation and are reported as one. The synthetic instrument occlusions (`occ0`) are kept as the controlled variant. Features are cached as uint8 with a per-tensor scale to fit the disk.
+
+<!-- polyp-results:start -->
+*Results pending: the pipeline is running.*
+<!-- polyp-results:end -->
+
 ## What this does NOT show
 
 - It does not fine-tune DINOv3. Every number is "frozen features + small head". A LoRA ablation is planned, not done.
