@@ -19,7 +19,7 @@ from tqdm import tqdm
 
 from dvos.backbone import extract_features, load_dinov3, preprocess
 from dvos.config import feature_dir, load_config
-from dvos.datasets import annotation_gaps, make_dataset
+from dvos.datasets import annotation_gaps, make_dataset, prepare_sequence
 from dvos.davis import Davis
 from dvos.features import has_feats, save_feats
 from dvos.occlusion import OccluderBank, occlude_sequence
@@ -72,11 +72,9 @@ def main() -> None:
     bank = build_bank(cfg) if any(v.startswith("occ") for v in variants) else None
     seqs = args.seqs or dataset.sequences
     for seq in tqdm(seqs, desc=f"extract {args.split}"):
-        imgs, msks = dataset.load(seq)
-        if args.stride > 1:
-            imgs, msks = imgs[:: args.stride], msks[:: args.stride]
-        if args.max_frames:
-            imgs, msks = imgs[: args.max_frames], msks[: args.max_frames]
+        imgs, msks, recipe = prepare_sequence(dataset, seq, args.stride, args.max_frames)
+        if not imgs:
+            continue
         ids = Davis.object_ids(msks[0])
         target = Davis.primary_object(msks[0])
         if target is None:
@@ -134,6 +132,8 @@ def main() -> None:
                 dataset=dataset.name,
                 gt_kind=dataset.gt_kind,
                 stride=args.stride,
+                max_frames=args.max_frames,
+                start_offset=recipe["start"],
                 input_size=list(size),
                 n_frames=len(imgs),
             )

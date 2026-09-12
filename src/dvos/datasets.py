@@ -85,3 +85,27 @@ def make_dataset(cfg, split: str) -> SequenceDataset:
 
         return PolypGenSequences(cfg.data.root, split)
     raise ValueError(f"unknown dataset {kind!r}")
+
+
+def prepare_sequence(
+    dataset: SequenceDataset,
+    seq: str,
+    stride: int = 1,
+    max_frames: int | None = None,
+    trim: bool = True,
+) -> tuple[list[np.ndarray], list[np.ndarray], dict]:
+    """Load a sequence and apply the cache protocol: start at the first frame where any object
+    is annotated (colonoscopy clips often begin before the polyp is in view), then keep every
+    ``stride``-th frame, then cap at ``max_frames``. Returns images, id masks and the recipe
+    (``start``, ``stride``, ``max_frames``) so figures and videos can reproduce the frames.
+    """
+    images, masks = dataset.load(seq)
+    start = 0
+    if trim:
+        start = next((i for i, m in enumerate(masks) if (m > 0).any()), len(masks))
+    images, masks = images[start:], masks[start:]
+    if stride > 1:
+        images, masks = images[::stride], masks[::stride]
+    if max_frames:
+        images, masks = images[:max_frames], masks[:max_frames]
+    return images, masks, dict(start=start, stride=stride, max_frames=max_frames)

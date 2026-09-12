@@ -15,7 +15,7 @@ import cv2
 import numpy as np
 
 from dvos.config import feature_dir, load_config
-from dvos.datasets import make_dataset
+from dvos.datasets import make_dataset, prepare_sequence
 from dvos.extract import build_bank, seq_seed
 from dvos.occlusion import occlude_sequence
 
@@ -41,9 +41,15 @@ def pick_frames(n: int, episode: list[int] | None) -> list[int]:
     return [max(1, n // 4), n // 2, max(1, 3 * n // 4)]
 
 
-def sequence_images(cfg, split: str, seq: str, variant: str, bank, target: int) -> list[np.ndarray]:
-    """Re-create the exact frames the features were extracted from (same seed, same bank)."""
-    imgs, msks = make_dataset(cfg, split).load(seq)
+def sequence_images(
+    cfg, split: str, seq: str, variant: str, bank, target: int, recipe: dict | None = None
+) -> list[np.ndarray]:
+    """Re-create the exact frames the features were extracted from: same trim/stride/cap
+    (``recipe`` from meta.json), same occluder seed and bank."""
+    recipe = recipe or {}
+    imgs, msks, _ = prepare_sequence(
+        make_dataset(cfg, split), seq, recipe.get("stride", 1), recipe.get("max_frames"), trim=True
+    )
     if variant == "clean":
         return imgs
     rng = np.random.default_rng(seq_seed(seq, int(variant[3:])))
@@ -91,7 +97,7 @@ def main() -> None:
         meta = json.loads((fdir / "meta.json").read_text())
         masks = np.load(fdir / "masks.npz")
         preds = np.load(run / "masks" / f"{seq}.npz")["pred"]
-        imgs = sequence_images(cfg, args.split, seq, variant, bank, meta["target_id"])
+        imgs = sequence_images(cfg, args.split, seq, variant, bank, meta["target_id"], meta)
         frames = pick_frames(len(imgs), meta["episode"])
         strip = []
         for t in frames:

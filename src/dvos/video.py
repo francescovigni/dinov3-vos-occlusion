@@ -168,7 +168,7 @@ def main() -> None:
     meta = json.loads((fdir / "meta.json").read_text())
     masks = np.load(fdir / "masks.npz")
     bank = build_bank(cfg) if variant != "clean" else None
-    imgs = sequence_images(cfg, args.split, args.seq, variant, bank, meta["target_id"])
+    imgs = sequence_images(cfg, args.split, args.seq, variant, bank, meta["target_id"], meta)
     names = args.names or (["baseline", "head"] if args.compare else [run.name])
     if args.compare:
         left = render_frames(
