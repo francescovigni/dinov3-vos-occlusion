@@ -36,7 +36,7 @@ The first version of this protocol used 0.8–1.4× occluders with 15 % jitter. 
 |---|---|---|---|
 | v1 | memory head as above, soft masks written to memory, fixed 0.5 gate | — | masks shrank frame by frame until the object vanished, on clean sequences too |
 | v2 | hard masks written to memory, gapped clips, held-out checkpoint selection | the drift | collapses on scenes with several similar instances (fish, people) that the zero-shot k-NN survives because it is spatially local |
-| v3 | position channels in the keys, locality window on recent memory | most of the instance confusion | still 5 points below zero-shot on clean; the gate never fired because the protocol had almost no fully hidden frames |
+| v3 | position channels in the keys, locality window on recent memory | most of the instance confusion | still 6 points below zero-shot on clean; the gate never fired because the protocol had almost no fully hidden frames |
 | v4 | zero-shot propagation fed to the head as a prior; heavier occluders; hidden = fraction ≥ 0.9; calibrated gate | — | see results |
 
 **Metrics.** J (region IoU) and F (boundary F-measure) on frames 1..T−1, DAVIS convention, plus three occlusion numbers computed over the stored episodes: `recovery` (frames after the occluder leaves until J ≥ 0.5 again), `leak` (fraction of predicted mask sitting on the occluder while the object is hidden), and `vis AUC` (does the visibility score separate hidden from visible frames).
@@ -50,12 +50,12 @@ The tables are generated from `runs/` by `scripts/render_results.py`; the README
 
 | method | clean J&F | occ0 J&F | occ1 J&F | occ0 leak | occ0 vis AUC | occ0 never recovered |
 |---|---|---|---|---|---|---|
-| zero-shot k-NN propagation | 0.771 | 0.678 | 0.686 | 0.927 | 0.797 | 3 / 30 |
-| zero-shot propagation + learned visibility gate | 0.771 | 0.678 | 0.686 | 0.927 | 0.848 | 3 / 30 |
-| head v1 (soft memory masks) | 0.672 | 0.592 | 0.600 | 0.466 | 0.753 | 6 / 30 |
-| head v2 (+ hard masks, gapped clips, held-out selection) | 0.691 | 0.634 | 0.620 | 0.544 | 0.733 | 4 / 30 |
-| head v3 (+ position channels, locality window) | 0.718 | 0.637 | 0.634 | 0.674 | 0.643 | 5 / 30 |
-| head v4 (+ zero-shot prior, calibrated gate) | 0.706 | 0.630 | 0.634 | 0.596 | 0.908 | 3 / 30 |
+| zero-shot k-NN propagation | 0.767 | 0.673 | 0.682 | 0.927 | 0.797 | 3 / 30 |
+| zero-shot propagation + learned visibility gate | 0.767 | 0.673 | 0.682 | 0.927 | 0.848 | 3 / 30 |
+| head v1 (soft memory masks) | 0.637 | 0.589 | 0.597 | 0.466 | 0.753 | 6 / 30 |
+| head v2 (+ hard masks, gapped clips, held-out selection) | 0.670 | 0.630 | 0.617 | 0.544 | 0.733 | 4 / 30 |
+| head v3 (+ position channels, locality window) | 0.708 | 0.633 | 0.631 | 0.674 | 0.643 | 5 / 30 |
+| head v4 (+ zero-shot prior, calibrated gate) | 0.702 | 0.625 | 0.629 | 0.596 | 0.908 | 3 / 30 |
 
 #### Where the accuracy goes (occ0, per-frame J)
 
@@ -72,23 +72,23 @@ The tables are generated from `runs/` by `scripts/render_results.py`; the README
 
 | ablation (occ0) | J&F | leak | vis AUC | never recovered |
 |---|---|---|---|---|
-| v4, calibrated gate, frame 0 permanent | 0.630 | 0.596 | 0.908 | 3 / 30 |
-| v4, gate chosen by J | 0.616 | 0.566 | 0.848 | 4 / 30 |
-| v4, ungated writes | 0.616 | 0.566 | 0.848 | 4 / 30 |
-| v4, FIFO memory (frame 0 evictable) | 0.627 | 0.594 | 0.907 | 3 / 30 |
-| v4 trained on clean features only | 0.646 | 0.878 | 0.632 | 2 / 30 |
-| v4 trained on clean only, evaluated on clean | 0.734 | – | – | – |
+| v4, calibrated gate, frame 0 permanent | 0.625 | 0.596 | 0.908 | 3 / 30 |
+| v4, gate chosen by J | 0.611 | 0.566 | 0.848 | 4 / 30 |
+| v4, ungated writes | 0.611 | 0.566 | 0.848 | 4 / 30 |
+| v4, FIFO memory (frame 0 evictable) | 0.622 | 0.594 | 0.907 | 3 / 30 |
+| v4 trained on clean features only | 0.642 | 0.878 | 0.632 | 2 / 30 |
+| v4 trained on clean only, evaluated on clean | 0.731 | – | – | – |
 <!-- results:end -->
 
 ### Reading the numbers
 
-**The zero-shot baseline is strong, and it fails in exactly one place.** Frozen DINOv3 features with k-NN label propagation reach J&F 0.771 on clean val. Under full occlusion they drop to 0.678, and the episode split shows where: J inside the episode is 0.05 with a leak of 0.93 — the propagated mask paints the occluder — while J ten frames after the episode is 0.73 and 0.77 elsewhere. Recovery is immediate in 27 of 30 sequences because frame 0 is always in the context. The baseline does not have a re-acquisition problem. It has a "does not know the object is gone" problem.
+**The zero-shot baseline is strong, and it fails in exactly one place.** Frozen DINOv3 features with k-NN label propagation reach J&F 0.767 on clean val. Under full occlusion they drop to 0.673, and the episode split shows where: J inside the episode is 0.05 with a leak of 0.93 — the propagated mask paints the occluder — while J ten frames after the episode is 0.73 and 0.77 elsewhere. Recovery is immediate in 27 of 30 sequences because frame 0 is always in the context. The baseline does not have a re-acquisition problem. It has a "does not know the object is gone" problem.
 
-**The trained head never beat it on J&F.** Four versions, each diagnosed on val and fixed: v1 drifted because soft masks written to memory eroded the object frame by frame; v2 wrote hard masks and stopped drifting but collapsed on scenes with several similar instances; v3 added position channels and a locality window and recovered most of those; v4 fed the zero-shot propagation to the decoder as a prior. Clean J&F went 0.672 → 0.691 → 0.718 → 0.706 against 0.771 for zero-shot. On the first twelve val sequences the head's own k-NN prior scores J 0.756 with the head's memory writes and 0.847 with oracle writes, while the head's output scores 0.766: the decoder improves its input by a point, and the missing nine points are error accumulation through the memory. A 3.4M-parameter head trained on 52 sequences does not learn a better appearance model than plain feature similarity; it can only learn how to *use* memory.
+**The trained head never beat it on J&F.** Four versions, each diagnosed on val and fixed: v1 drifted because soft masks written to memory eroded the object frame by frame; v2 wrote hard masks and stopped drifting but collapsed on scenes with several similar instances; v3 added position channels and a locality window and recovered most of those; v4 fed the zero-shot propagation to the decoder as a prior. Clean J&F went 0.637 → 0.670 → 0.708 → 0.702 against 0.767 for zero-shot (v1–v3 scored with the current inference loop, hard memory masks included, so the v1 figure no longer shows its original soft-mask drift in full). On the first twelve val sequences the head's own k-NN prior scores J 0.756 with the head's memory writes and 0.847 with oracle writes, while the head's output scores 0.766: the decoder improves its input by a point, and the missing nine points are error accumulation through the memory. A 3.4M-parameter head trained on 52 sequences does not learn a better appearance model than plain feature similarity; it can only learn how to *use* memory.
 
-**What occlusion training buys, measured against the same head trained on clean features.** Leak 0.88 → 0.60, visibility AUC 0.63 → 0.91, J inside the episode 0.05 → 0.13. Cost: 2.8 J&F points on clean sequences (0.734 → 0.706) and 1.6 under occlusion (0.646 → 0.630). The heads see fewer than 300 fully-hidden training frames; that they learn to say "hidden" at all is the positive result, and that it costs accuracy on visible frames is the honest one.
+**What occlusion training buys, measured against the same head trained on clean features.** Leak 0.88 → 0.60, visibility AUC 0.63 → 0.91, J inside the episode 0.05 → 0.13. Cost: 2.9 J&F points on clean sequences (0.731 → 0.702) and 1.7 under occlusion (0.642 → 0.625). The heads see fewer than 300 fully-hidden training frames; that they learn to say "hidden" at all is the positive result, and that it costs accuracy on visible frames is the honest one.
 
-**Gating.** With a calibrated gate the v4 head beats its ungated self by 1.4 J&F and 0.06 visibility AUC on occ0. Permanent frame 0 versus plain FIFO changes nothing once reads are spatially local. Under the first, too-gentle occlusion protocol these two ablations were *identical* — the gate never fired because there were 39 hidden frames in 1,969. Protocol first, ablation second.
+**Gating.** With a calibrated gate the v4 head beats its ungated self by 1.4 J&F (0.625 vs 0.611) and 0.06 visibility AUC on occ0. Permanent frame 0 versus plain FIFO changes nothing once reads are spatially local. Under the first, too-gentle occlusion protocol these two ablations were *identical* — the gate never fired because there were 39 hidden frames in 1,969. Protocol first, ablation second.
 
 **The thesis test that failed.** If the head's contribution is the visibility signal, the cleanest use of it is to gate the zero-shot propagation: no memory write and no foreground while the head says hidden. Chosen by mean J on the held-out training sequences, the best gate is 0.0 — no gate. Tuned on val itself, a gate of 0.3 gives +1.5 J and halves the leak (0.94 → 0.50, J inside 0.05 → 0.32). That is an oracle bound, not a result: the visibility scores on the held-out sequences (balanced accuracy 0.70) are not reliable enough for a hard threshold to transfer.
 

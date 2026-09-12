@@ -2,7 +2,7 @@
 
 > Semi-supervised video object segmentation (mask given on frame 0, propagate it through the video) with a **frozen DINOv3** encoder and a small trainable **memory head** whose job is to survive occlusions: stop updating memory when the object is hidden, say "hidden" instead of guessing, and re-acquire the object when it reappears.
 
-**Result, in one line:** on DAVIS 2017 val the frozen-DINOv3 zero-shot propagation is hard to beat (J&F 0.771 clean, 0.678 under full occlusion); four versions of a 3.4M-parameter memory head never beat it on J&F, and what training with occlusions buys is *behaviour under occlusion* — leak onto the occluder 0.93 → 0.60, visibility AUC 0.80 → 0.91 — at a cost of 4–7 J&F points elsewhere. Details in [Results](#results) and [docs/article.md](docs/article.md).
+**Result, in one line:** on DAVIS 2017 val the frozen-DINOv3 zero-shot propagation is hard to beat (J&F 0.767 clean, 0.673 under full occlusion); four versions of a 3.4M-parameter memory head never beat it on J&F, and what training with occlusions buys is *behaviour under occlusion* — leak onto the occluder 0.93 → 0.60, visibility AUC 0.80 → 0.91 — at a cost of 4–7 J&F points elsewhere. Details in [Results](#results) and [docs/article.md](docs/article.md).
 
 ```mermaid
 flowchart LR
@@ -85,12 +85,12 @@ Everything below is on DAVIS 2017 val, single target per sequence, frames 1..T�
 
 | method | clean J&F | occ0 J&F | occ1 J&F | occ0 leak | occ0 vis AUC | occ0 never recovered |
 |---|---|---|---|---|---|---|
-| zero-shot k-NN propagation | 0.771 | 0.678 | 0.686 | 0.927 | 0.797 | 3 / 30 |
-| zero-shot propagation + learned visibility gate | 0.771 | 0.678 | 0.686 | 0.927 | 0.848 | 3 / 30 |
-| head v1 (soft memory masks) | 0.672 | 0.592 | 0.600 | 0.466 | 0.753 | 6 / 30 |
-| head v2 (+ hard masks, gapped clips, held-out selection) | 0.691 | 0.634 | 0.620 | 0.544 | 0.733 | 4 / 30 |
-| head v3 (+ position channels, locality window) | 0.718 | 0.637 | 0.634 | 0.674 | 0.643 | 5 / 30 |
-| head v4 (+ zero-shot prior, calibrated gate) | 0.706 | 0.630 | 0.634 | 0.596 | 0.908 | 3 / 30 |
+| zero-shot k-NN propagation | 0.767 | 0.673 | 0.682 | 0.927 | 0.797 | 3 / 30 |
+| zero-shot propagation + learned visibility gate | 0.767 | 0.673 | 0.682 | 0.927 | 0.848 | 3 / 30 |
+| head v1 (soft memory masks) | 0.637 | 0.589 | 0.597 | 0.466 | 0.753 | 6 / 30 |
+| head v2 (+ hard masks, gapped clips, held-out selection) | 0.670 | 0.630 | 0.617 | 0.544 | 0.733 | 4 / 30 |
+| head v3 (+ position channels, locality window) | 0.708 | 0.633 | 0.631 | 0.674 | 0.643 | 5 / 30 |
+| head v4 (+ zero-shot prior, calibrated gate) | 0.702 | 0.625 | 0.629 | 0.596 | 0.908 | 3 / 30 |
 
 #### Where the accuracy goes (occ0, per-frame J)
 
@@ -107,19 +107,19 @@ Everything below is on DAVIS 2017 val, single target per sequence, frames 1..T�
 
 | ablation (occ0) | J&F | leak | vis AUC | never recovered |
 |---|---|---|---|---|
-| v4, calibrated gate, frame 0 permanent | 0.630 | 0.596 | 0.908 | 3 / 30 |
-| v4, gate chosen by J | 0.616 | 0.566 | 0.848 | 4 / 30 |
-| v4, ungated writes | 0.616 | 0.566 | 0.848 | 4 / 30 |
-| v4, FIFO memory (frame 0 evictable) | 0.627 | 0.594 | 0.907 | 3 / 30 |
-| v4 trained on clean features only | 0.646 | 0.878 | 0.632 | 2 / 30 |
-| v4 trained on clean only, evaluated on clean | 0.734 | – | – | – |
+| v4, calibrated gate, frame 0 permanent | 0.625 | 0.596 | 0.908 | 3 / 30 |
+| v4, gate chosen by J | 0.611 | 0.566 | 0.848 | 4 / 30 |
+| v4, ungated writes | 0.611 | 0.566 | 0.848 | 4 / 30 |
+| v4, FIFO memory (frame 0 evictable) | 0.622 | 0.594 | 0.907 | 3 / 30 |
+| v4 trained on clean features only | 0.642 | 0.878 | 0.632 | 2 / 30 |
+| v4 trained on clean only, evaluated on clean | 0.731 | – | – | – |
 <!-- results:end -->
 
 **How to read it.**
 
 - The zero-shot k-NN propagation loses 9 J&F points under occlusion, and all of it *inside* the episode: it paints the occluder (leak 0.93, J 0.05 inside) and recovers as soon as the occluder leaves, because frame 0 is always in its context. Its weakness is not re-acquisition, it is not knowing that the object is gone.
-- Each head version fixes the failure the previous one exposed (see the version table in the article), but none beats zero-shot on J&F, clean or occluded. The head's own k-NN prior with *oracle* memory writes scores J 0.847 on the first 12 val sequences against 0.756 with its own writes: the remaining gap is error accumulation through the memory, not the decoder.
-- What training with synthetic occlusions buys, against the same head trained on clean features only: leak 0.88 → 0.60, visibility AUC 0.63 → 0.91, J inside the episode 0.05 → 0.13. What it costs: 2.8 J&F points on clean sequences and 1.6 under occlusion.
+- Each head version fixes the failure the previous one exposed (see the version table in the article), but none beats zero-shot on J&F, clean or occluded. Rows v1–v3 are those checkpoints scored with the *current* inference loop (hard memory masks, locality where their config has it), so they are comparable to v4 but not identical to the runs that motivated each fix. The head's own k-NN prior with *oracle* memory writes scores J 0.847 on the first 12 val sequences against 0.756 with its own writes: the remaining gap is error accumulation through the memory, not the decoder.
+- What training with synthetic occlusions buys, against the same head trained on clean features only: leak 0.88 → 0.60, visibility AUC 0.63 → 0.91, J inside the episode 0.05 → 0.13. What it costs: 2.9 J&F points on clean sequences (0.731 → 0.702) and 1.7 under occlusion (0.642 → 0.625).
 - The gated-write ablation now moves the needle, a little: +1.4 J&F and +0.06 visibility AUC over ungated writes. Frame-0 permanence changes nothing once reads are spatially local.
 - Applying the head's visibility score as a hard gate on the zero-shot propagation does not survive calibration: on the held-out training sequences the best gate is 0.0, i.e. no gate. Tuned on val itself (an oracle, not a result) a gate of 0.3 gives +1.5 J and halves the leak:
 
