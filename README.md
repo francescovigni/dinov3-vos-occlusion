@@ -207,6 +207,36 @@ Same head, same metrics, same pipeline (`scripts/run_polyp.sh`), on public colon
 ![polyp 133, occ0](docs/videos/polyp_133_occ0.gif)
 <!-- polyp-results:end -->
 
+## Study 3 — running it on a Jetson Nano
+
+Full write-up: [docs/edge.md](docs/edge.md). The same frozen ViT-S/16 moved onto a 2019 Jetson
+Nano (TensorRT 8.2, Maxwell, compute 5.3) with a CSI camera, to find out what the edge costs.
+
+Two findings came out of it and neither is the latency number the exercise went in for.
+
+**The FP16 engines return NaN, and `trtexec` reported clean throughput for every one of them.**
+TensorRT 8.2 has no native LayerNorm, the decomposed variance term overflows fp16 on ViT
+activations, and the benchmark tool never inspects the output it has just timed. Two independent
+timing methods agreed to within 1 % on engines computing nothing. Correctness costs ~1.4x.
+
+**Dropping the input resolution costs 3.4 J&F points on DAVIS and the whole track on real video.**
+At 384×672 the mask follows the object, loses it to a real hand occlusion and never re-acquires
+it; at 480×864 it recovers both times. DAVIS cannot see this because its val split has few full
+occlusions.
+
+| input | patch tokens | J&F (DAVIS val) | fps (Nano, FP32) | GPU ms/frame |
+|---|---|---|---|---|
+| 192×336 | 252 | 0.428 | 6.37 | 157 |
+| 320×576 | 720 | 0.666 | 2.28 | 438 |
+| 384×672 | 1008 | 0.733 | 1.50 | 666 |
+| 480×864 | 1620 | 0.767 | 0.75 | 1337 |
+
+Full quality runs at 0.75 fps, 33x short of real time. Two additions recover some of it: an
+exemplar re-detection branch outside the propagation vote (J-after 0.006 → 0.668 at 384×672),
+and a reference silhouette taken from a photograph of the object, which gives pixel-accurate
+borders and an occlusion estimate at r=0.96 across a 10.9x scale gap. The report records the
+conditions under which each works, and four conclusions that later measurements overturned.
+
 ## What this does NOT show
 
 - It does not fine-tune DINOv3. Every number is "frozen features + small head". A LoRA ablation is planned, not done.
