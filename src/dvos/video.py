@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
+import subprocess
 from pathlib import Path
 
 import cv2
@@ -105,8 +107,55 @@ def render_frames(
 
 
 def write_mp4(frames: list[np.ndarray], out: Path, fps: int) -> None:
+    """RGB frames -> H.264 mp4.
+
+    OpenCV's ``mp4v`` writer produces a structurally valid MPEG-4 stream that QuickTime
+    renders as a flat green screen, so ffmpeg is used when it is on PATH and the fourcc
+    writer is only the fallback. Dimensions are padded to even numbers because H.264
+    cannot encode odd ones.
+    """
     h, w = frames[0].shape[:2]
     out.parent.mkdir(parents=True, exist_ok=True)
+
+    if shutil.which("ffmpeg"):
+        cmd = [
+            "ffmpeg",
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "rawvideo",
+            "-pix_fmt",
+            "rgb24",
+            "-s",
+            f"{w}x{h}",
+            "-r",
+            str(fps),
+            "-i",
+            "-",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-crf",
+            "20",
+            "-vf",
+            "pad=ceil(iw/2)*2:ceil(ih/2)*2",
+            "-movflags",
+            "+faststart",
+            str(out),
+        ]
+        proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
+        try:
+            for f in frames:
+                proc.stdin.write(np.ascontiguousarray(f, dtype=np.uint8).tobytes())
+            proc.stdin.close()
+            if proc.wait() == 0:
+                return
+        except (BrokenPipeError, OSError):
+            proc.kill()
+        # fall through to the fourcc writer if ffmpeg failed for any reason
+
     vw = cv2.VideoWriter(str(out), cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
     if not vw.isOpened():
         raise RuntimeError(f"cannot open video writer for {out}")

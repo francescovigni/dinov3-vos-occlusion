@@ -1,6 +1,7 @@
 data/DAVIS/
 data/features/
 data/*.zip
+artifacts/onnx/
 runs/
 __pycache__/
 *.pt
@@ -10,3 +11,4 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 docs/videos/*.mp4
+configs/_sweep_*.yaml

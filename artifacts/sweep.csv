@@ -1,0 +1,11 @@
+# NVIDIA Jetson Nano Developer Kit
+# # R32 (release), REVISION: 7.6, GCID: 38171779, BOARD: t210ref, EABI: aarch64, DATE: Tue Nov  5 07:46:14 UTC 2024
+# trtexec: TensorRT 8.2.1
+# gpu_cur_hz=921600000 gpu_max_hz=921600000 cpu0_cur_khz=1479000 governor=schedutil
+# date=2026-10-01T11:20:11+02:00
+size,tokens,precision,build_s,throughput_qps,gpu_mean_ms,gpu_median_ms,host_mean_ms,status
+192x336,252,fp16,464,9.03663,110.53,110.51,,ok
+256x448,448,fp16,541,5.42413,184.143,184.101,,ok
+320x576,720,fp16,668,3.10487,321.736,321.674,,ok
+384x672,1008,fp16,807,2.06296,484.274,484.441,,ok
+480x864,1620,fp16,522,,,,,BUILD_FAIL_launch_timeout

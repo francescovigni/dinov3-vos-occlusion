@@ -1,0 +1,5 @@
+# baseline · clean · val (30 sequences)
+
+| J | F | J&F | leak | vis AUC | recovery median | never recovered / episodes |
+|---|---|---|---|---|---|---|
+| 0.617 | 0.529 | 0.573 | nan | 0.996 | nan | 0 / 0 |
