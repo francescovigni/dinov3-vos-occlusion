@@ -12,3 +12,4 @@ __pycache__/
 .ruff_cache/
 docs/videos/*.mp4
 configs/_sweep_*.yaml
+real_data/
