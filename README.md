@@ -1,8 +1,8 @@
 # DINOv3 VOS under occlusion
 
-> Semi-supervised video object segmentation (mask given on frame 0, propagate it through the video) with a **frozen DINOv3** encoder and a small trainable **memory head** whose job is to survive occlusions: stop updating memory when the object is hidden, say "hidden" instead of guessing, and re-acquire the object when it reappears.
+> Semi-supervised video object segmentation: given a mask on frame 0, propagate it through video with frozen DINOv3 features and a small trainable memory head that survives occlusions — stops updating under hidden state, signals visibility, re-acquires on reappearance.
 
-**Result, in one line:** on DAVIS 2017 val the frozen-DINOv3 zero-shot propagation is hard to beat (J&F 0.767 clean, 0.673 under full occlusion); four versions of a 3.4M-parameter memory head never beat it on J&F, and what training with occlusions buys is *behaviour under occlusion* — leak onto the occluder 0.93 → 0.60, visibility AUC 0.80 → 0.91 — at a cost of 4–7 J&F points elsewhere. Details in [Results](#results) and [docs/article.md](docs/article.md).
+**Result:** DAVIS 2017 val — zero-shot DINOv3 k-NN reaches J&F 0.767 clean, 0.673 under full occlusion. Four memory heads (3.4M parameters each) never beat it on J&F; training with occlusions buys behaviour: leak 0.93 → 0.60, visibility AUC 0.80 → 0.91, at cost of 4–7 J&F points elsewhere. Details in [Results](#results) and [docs/article.md](docs/article.md).
 
 ```mermaid
 flowchart LR
@@ -19,21 +19,21 @@ flowchart LR
 
 ## Why this exists
 
-DINOv3 patch features already track by nearest-neighbour label propagation (the DINO video-segmentation protocol). That baseline fails in a specific way under occlusion: the memory keeps absorbing the occluder, the mask drifts onto it, and nothing brings the object back. The three fixes are architectural, not a bigger backbone:
+DINOv3 k-NN label propagation works but fails under occlusion: the memory absorbs the occluder and the mask drifts onto it. Three architectural fixes:
 
-1. **Gated memory update** — no write while the visibility head says hidden.
-2. **Explicit visibility output** — trained on frames where the ground truth says the object is not visible.
-3. **Permanent frame-0 memory** — re-identification after reappearance matches against the clean template, not the polluted recent frames.
+1. **Gated memory update** — freeze memory when visibility head says hidden.
+2. **Visibility output** — trained on frames where ground truth is empty.
+3. **Permanent frame-0 memory** — re-identify against clean template after reappearance.
 
-The backbone stays frozen. Fine-tuning dense features without an anchor degrades them; if adaptation is ever needed it goes in as LoRA on the last blocks with a Gram-matrix consistency loss against the frozen model, as a separate ablation.
+Backbone stays frozen (fine-tuning dense features without an anchor degrades them). LoRA + Gram-matrix anchor planned as a separate ablation.
 
 ## Data
 
-- **DAVIS 2017 trainval 480p** — 60 train / 30 val sequences, 4,209 / 1,999 frames, CC BY 4.0 (Pont-Tuset et al. 2017). Train split for the head, val split for every reported number.
-- **Synthetic occlusions with ground truth**: objects cut from *training* sequences are pasted over the target for a contiguous episode of 4–12 frames, sized 1.2–1.8× the target's box so the episode actually hides it. Visible mask, full mask, occluder mask and occluded fraction are stored per frame; a frame counts as **hidden** when the fraction is ≥ 0.9 or the mask is empty. That label trains the visibility head, scores `vis AUC`, and calibrates the gate.
-- **Real occlusions** are detected from the annotation itself: an object whose mask area drops to zero between two non-empty frames.
+- **DAVIS 2017 trainval 480p** — 60 train / 30 val sequences, 4,209 / 1,999 frames, CC BY 4.0 (Pont-Tuset et al. 2017).
+- **Synthetic occlusions** — objects from training sequences pasted over target for 4–12 frames, sized 1.2–1.8× target box. Visible/full/occluder masks and fraction stored per frame; **hidden** = fraction ≥ 0.9 or empty mask.
+- **Real occlusions** — detected when mask area drops to zero between non-empty frames.
 
-Everything is public. No client data, no client names.
+Public data, no client content.
 
 ## Metrics
 
@@ -118,11 +118,11 @@ Everything below is on DAVIS 2017 val, single target per sequence, frames 1..T�
 
 **How to read it.**
 
-- The zero-shot k-NN propagation loses 9 J&F points under occlusion, and all of it *inside* the episode: it paints the occluder (leak 0.93, J 0.05 inside) and recovers as soon as the occluder leaves, because frame 0 is always in its context. Its weakness is not re-acquisition, it is not knowing that the object is gone.
-- Each head version fixes the failure the previous one exposed (see the version table in the article), but none beats zero-shot on J&F, clean or occluded. Rows v1–v3 are those checkpoints scored with the *current* inference loop (hard memory masks, locality where their config has it), so they are comparable to v4 but not identical to the runs that motivated each fix. The head's own k-NN prior with *oracle* memory writes scores J 0.847 on the first 12 val sequences against 0.756 with its own writes: the remaining gap is error accumulation through the memory, not the decoder.
-- What training with synthetic occlusions buys, against the same head trained on clean features only: leak 0.88 → 0.60, visibility AUC 0.63 → 0.91, J inside the episode 0.05 → 0.13. What it costs: 2.9 J&F points on clean sequences (0.731 → 0.702) and 1.7 under occlusion (0.642 → 0.625).
-- The gated-write ablation now moves the needle, a little: +1.4 J&F and +0.06 visibility AUC over ungated writes. Frame-0 permanence changes nothing once reads are spatially local.
-- Applying the head's visibility score as a hard gate on the zero-shot propagation does not survive calibration: on the held-out training sequences the best gate is 0.0, i.e. no gate. Tuned on val itself (an oracle, not a result) a gate of 0.3 gives +1.5 J and halves the leak:
+- Zero-shot loses 9 J&F points under occlusion, all inside the episode: it paints the occluder (leak 0.93, J 0.05 inside) and recovers immediately as the occluder leaves, because frame 0 stays in context. Its weakness is not re-acquisition but not knowing the object is gone.
+- None of the head versions beat zero-shot on clean J&F. Rows v1–v3 are scored with the current inference loop, so comparable to v4 but not identical to their motivating runs.
+- What training with occlusions buys vs clean-only training: leak 0.88 → 0.60, visibility AUC 0.63 → 0.91, J inside episode 0.05 → 0.13. Cost: 2.9 J&F on clean, 1.7 under occlusion.
+- Gated writes improve over ungated by +1.4 J&F and +0.06 visibility AUC. Frame-0 permanence has no effect once reads are spatially local.
+- Applying the head's visibility score as a hard gate on zero-shot propagation does not survive calibration (best gate on held-out train sequences: 0.0). Oracle gate of 0.3 on val gives +1.5 J and halves the leak.
 
 | oracle gate on zero-shot propagation (val occ0) | J | leak | J inside episode |
 |---|---|---|---|
@@ -165,10 +165,10 @@ Same head, same metrics, same pipeline (`scripts/run_polyp.sh`), on public colon
 | [PolypGen](https://github.com/DebeshJha/PolypGen) positive sequences (Ali et al., Sci Data 2023) | extra mask-level test set, 7 of 23 sequences | per-frame masks | 512×640 | open access (Sci Data) |
 | [Kvasir-Instrument](https://datasets.simula.no/kvasir-instrument/) (Jha et al., MMM 2021) | occluder bank for the synthetic variant | instrument masks, 590 images | as is | CC BY 4.0 |
 
-**Protocol differences from study 1.** A clip starts at its first annotated frame (54 of 60 test clips begin before the polyp is in view). The target is the largest box on that frame, followed through the unlabelled boxes by IoU association and nearest centre after a gap; on box datasets the predicted mask is scored by its bounding box. **Real episodes** are runs of box-less frames between boxed frames: 69 in the 60 test clips (median 11 frames, p90 35), 90 in the 100 training clips (median 14, p90 51, 24 of them 30+ frames). Occlusion and leaving the field of view are one class in the annotation and are reported as one. The synthetic instrument occlusions (`occ0`) are kept as the controlled variant. Features are cached as uint8 with a per-tensor scale to fit the disk.
+**Protocol differences.** Clip starts at first annotated frame (54/60 test clips begin before polyp visible). Target is largest box, tracked via IoU association and nearest centre; predicted mask scored by bounding box on box datasets. **Real episodes** = box-less frames between boxed frames: 69 in 60 test clips (median 11, p90 35), 90 in training (median 14, p90 51). Occlusion and out-of-view reported as one class. Synthetic instrument occlusions kept as controlled variant. Features cached as uint8 with per-tensor scale.
 
 <!-- polyp-results:start -->
-**Result, in one line:** frozen DINOv3 features do not separate a polyp from the mucosa well enough to track it. Zero-shot propagation, which reached J&F 0.77 on DAVIS, reaches **0.137** (box IoU) on the LDPolypVideo test clips; the same head that never beat zero-shot on DAVIS beats it here by 7 points (**0.208**), and on the mask-level PolypGen set it removes the leak onto instruments entirely (0.52 → 0.01) and separates hidden from visible frames (visibility AUC 0.48 → 0.74). The encoder is the bottleneck, which is the case for the adaptation step this study did not run.
+**Result:** Frozen DINOv3 features fail to separate polyps from mucosa. Zero-shot reaches J&F 0.137 on LDPolypVideo test (vs 0.77 on DAVIS); memory head beats it by 7 points (0.208). On mask-level PolypGen: leak drops 0.52 → 0.01, visibility AUC rises 0.48 → 0.74. Encoder is the bottleneck, not method — see LoRA ablation plan.
 
 #### LDPolypVideo test, 60 clips, box IoU on filled boxes
 
@@ -197,10 +197,10 @@ Same head, same metrics, same pipeline (`scripts/run_polyp.sh`), on public colon
 
 **How to read it.**
 
-- "Inside real episode" is inflated by the empty-equals-empty convention: the ground truth there is an empty box, so a tracker that has already lost the polyp and predicts nothing scores 1.0. The column that matters is *elsewhere*: 0.11 for zero-shot, 0.25 for the head. Both are failures of localisation, not of occlusion handling.
-- Polyps are small for a patch-16 encoder: median box 2.1 % of the frame, short side ≈ 4 patches, 11 % under 2 patches. The zero-shot k-NN locks onto mucosa texture within a few frames; the head, with position channels and a locality window, holds on longer and re-acquires faster after real disappearances (median 4.5 frames vs 9 on occ0) but from a weak signal.
-- Training saw 392 held-out frames with 31 hidden ones; the calibrated gate (balanced accuracy 0.58) barely matters, and gated vs ungated writes are within noise here. The visibility head still transfers: on PolypGen the leak onto the instrument drops from 0.52 to 0.01.
-- One training run, one seed, boxes with no identities followed by a heuristic. The numbers say "encoder", not "method": the next experiment is LoRA on the last DINOv3 blocks with a Gram anchor on public polyp stills (Kvasir-SEG is on disk), then this table again.
+- "Inside real episode" is inflated by the empty-equals-empty convention: the ground truth is an empty box, so a tracker predicting nothing scores 1.0. The relevant column is *elsewhere*: 0.11 for zero-shot, 0.25 for the head — both localization failures, not occlusion handling.
+- Polyps are small (median 2.1 % of frame, short side ≈ 4 patches). Zero-shot locks onto mucosa texture; the head, with position channels and locality window, re-acquires faster after real disappearances (median 4.5 frames vs 9 on occ0) but from weak signal.
+- Gated vs ungated writes are within noise. Visibility head still transfers: on PolypGen leak drops 0.52 → 0.01.
+- One run, one seed, boxes with heuristic matching. Numbers say "encoder", not "method" — next experiment is LoRA on last DINOv3 blocks with Gram anchor on public polyp stills.
 
 *Videos:* `docs/videos/polyp_133_occ0.gif` (best occluded clip), `docs/videos/polyp_144_clean.gif` (best clean clip) and `docs/videos/polyp_147_long.gif` (a full 465-frame clip with five real disappearance episodes, the longest 108 frames; here the zero-shot baseline scores 0.585 J&F against the head's 0.396, cached uncapped via `configs/polyp_long.yaml`). Baseline left, head right.
 
@@ -209,20 +209,11 @@ Same head, same metrics, same pipeline (`scripts/run_polyp.sh`), on public colon
 
 ## Study 3 — running it on a Jetson Nano
 
-Full write-up: [docs/edge.md](docs/edge.md). The same frozen ViT-S/16 moved onto a 2019 Jetson
-Nano (TensorRT 8.2, Maxwell, compute 5.3) with a CSI camera, to find out what the edge costs.
+Full write-up: [docs/edge.md](docs/edge.md). Same frozen ViT-S/16 on 2019 Jetson Nano (TensorRT 8.2, Maxwell, compute 5.3) with CSI camera.
 
-Two findings came out of it and neither is the latency number the exercise went in for.
+**The FP16 engines return NaN** — TensorRT 8.2 has no native LayerNorm, decomposed variance overflows on ViT activations, and `trtexec` never checks output. Correctness costs ~1.4x latency.
 
-**The FP16 engines return NaN, and `trtexec` reported clean throughput for every one of them.**
-TensorRT 8.2 has no native LayerNorm, the decomposed variance term overflows fp16 on ViT
-activations, and the benchmark tool never inspects the output it has just timed. Two independent
-timing methods agreed to within 1 % on engines computing nothing. Correctness costs ~1.4x.
-
-**Dropping the input resolution costs 3.4 J&F points on DAVIS and the whole track on real video.**
-At 384×672 the mask follows the object, loses it to a real hand occlusion and never re-acquires
-it; at 480×864 it recovers both times. DAVIS cannot see this because its val split has few full
-occlusions.
+**Dropping resolution costs 3.4 J&F on DAVIS** — at 384×672 track is lost under real occlusion and never re-acquired; at 480×864 it recovers. DAVIS val has few full occlusions, so this is invisible in the benchmark.
 
 | input | patch tokens | J&F (DAVIS val) | fps (Nano, FP32) | GPU ms/frame |
 |---|---|---|---|---|
@@ -231,21 +222,17 @@ occlusions.
 | 384×672 | 1008 | 0.733 | 1.50 | 666 |
 | 480×864 | 1620 | 0.767 | 0.75 | 1337 |
 
-Full quality runs at 0.75 fps, 33x short of real time. Two additions recover some of it: an
-exemplar re-detection branch outside the propagation vote (J-after 0.006 → 0.668 at 384×672),
-and a reference silhouette taken from a photograph of the object, which gives pixel-accurate
-borders and an occlusion estimate at r=0.96 across a 10.9x scale gap. The report records the
-conditions under which each works, and four conclusions that later measurements overturned.
+Full quality runs at 0.75 fps (33x short of real time). Re-detection outside propagation vote recovers some of it (J 0.006 → 0.668 at 384×672); reference silhouettes from photographs give pixel-accurate borders and occlusion estimates (r=0.96 across 10.9x scale gap). See [docs/edge.md](docs/edge.md) for findings and limitations discovered in later measurements.
 
 ## What this does NOT show
 
-- It does not fine-tune DINOv3. Every number is "frozen features + small head". A LoRA ablation is planned, not done.
-- It does not handle out-of-view the same as occlusion. Both look like "mask area zero" in DAVIS; the synthetic protocol only produces occlusions.
-- Single-target evaluation everywhere: the largest object on frame 0 of each sequence (the first id is degenerate in two val sequences). Multi-object DAVIS scoring is not implemented.
-- Laptop compute: ViT-S/16 at 480×864, features cached once; the training split is cached at temporal stride 2 to fit the disk. No claim about ViT-L or 7B behaviour.
-- The gate threshold is calibrated on eight held-out *training* sequences, never on val. Those eight are also the only validation signal during training, so checkpoint selection sees no val frame.
-- One training run per configuration, one seed. Differences of a point or two between head versions are within what a second seed could move.
-- The head's failures are concentrated in scenes with several similar instances (gold-fish, lab-coat, india, judo): a locality window helped, a stronger identity model would be needed.
+- No fine-tuning of DINOv3. All numbers: frozen features + small head. LoRA ablation planned, not done.
+- No separate handling of out-of-view vs occlusion; both appear as zero mask area in DAVIS.
+- Single-target only: largest object on frame 0. Multi-object DAVIS not implemented.
+- Laptop compute: ViT-S/16 at 480×864, features cached once. Training split cached at stride 2 to fit disk.
+- Gate threshold calibrated on eight held-out training sequences, never val. Checkpoint selection sees no val frame.
+- One run, one seed per configuration. Point-or-two differences may be within seed variance.
+- Head failures concentrated in multi-instance scenes. Locality window helps; stronger identity model needed.
 
 ## Licence
 
