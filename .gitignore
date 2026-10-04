@@ -1,6 +1,4 @@
-data/DAVIS/
-data/features/
-data/*.zip
+data/
 artifacts/onnx/
 runs/
 __pycache__/
